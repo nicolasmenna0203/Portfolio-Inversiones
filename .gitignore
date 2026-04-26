@@ -1,0 +1,49 @@
+# Credenciales (NUNCA subir al repo)
+.env
+.env.local
+credentials.json
+service_account.json
+
+# Node
+node_modules/
+.next/
+.swc/
+out/
+
+# Python / legacy
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+.Python
+
+# Excel / datos locales
+*.xlsx
+*.csv
+data/exports/
+
+# PDFs locales (reportes de cuenta)
+*.pdf
+
+# TypeScript build info
+tsconfig.tsbuildinfo
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# Jupyter
+*.ipynb
+.ipynb_checkpoints/
+
+# Claude Code
+CLAUDE.md
+claude.md
+.claude/

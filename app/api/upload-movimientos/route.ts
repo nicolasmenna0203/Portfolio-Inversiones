@@ -1,0 +1,216 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { google } from 'googleapis';
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+
+function getAuthWrite() {
+  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  if (!raw) throw new Error('Falta env var GOOGLE_SERVICE_ACCOUNT_JSON');
+  const credentials = JSON.parse(raw);
+  return new google.auth.GoogleAuth({
+    credentials,
+    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+  });
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function parseArgNum(s: string): number {
+  return parseFloat(s.replace(/\./g, '').replace(',', '.').replace(/[^0-9.\-]/g, ''));
+}
+
+function formatFecha(ddmmyyyy: string): string {
+  // "06-04-2026" → "06/04/2026"
+  return ddmmyyyy.replace(/-/g, '/');
+}
+
+// ── Parser ────────────────────────────────────────────────────────────────────
+
+interface MovimientoRow {
+  fecha: string;       // "DD/MM/YYYY"
+  montoUSD: number;    // siempre positivo
+  tipo: 'Ingreso' | 'Salida';
+}
+
+interface ParsedMovimientos {
+  mesKey: string;      // "YYYY-MM"
+  rows: MovimientoRow[];
+}
+
+function parseMovimientosText(fullText: string): ParsedMovimientos {
+  // ── 1. Encontrar sección INCREMENTOS/DECREMENTOS ───────────────────────────
+  const sectionStart = fullText.indexOf('INCREMENTOS/DECREMENTOS DE LA INVERSION');
+  if (sectionStart === -1) throw new Error('No se encontró sección INCREMENTOS/DECREMENTOS en el PDF');
+
+  // Termina en la línea "INCREMENTO DE LA INVERSION" o "MOVIMIENTOS"
+  const sectionEnd = fullText.indexOf('INCREMENTO DE LA INVERSION', sectionStart);
+  const section = sectionEnd > 0
+    ? fullText.slice(sectionStart, sectionEnd)
+    : fullText.slice(sectionStart, sectionStart + 3000);
+
+  // ── 2. Extraer mes del encabezado "Desde DD-MM-YYYY- Hasta DD-MM-YYYY" ─────
+  const hastaMatch = fullText.match(/Hasta\s+(\d{2}-\d{2}-(\d{4}))/i);
+  const mesKey = hastaMatch
+    ? `${hastaMatch[2]}-${hastaMatch[1].split('-')[1]}`
+    : '';
+
+  // ── 3. Parsear filas ───────────────────────────────────────────────────────
+  // Patrón de línea en sección INCREMENTOS:
+  // "06-04-2026 Orden De Pago - 14484527 ARS 1.427,88 -900.000,00 -630,31*"
+  // "07-04-2026 Recibo De Cobro - 14627953 ARS 1.431,03 1.600.000,00 1.118,08*"
+  // Columnas: FECHA LIQ | COMPROBANTE | ESPECIE | TIPO DE CAMBIO | ARS | USD
+  // El monto USD es el último número de la línea (puede tener * al final)
+
+  const rows: MovimientoRow[] = [];
+
+  // Regex: fecha + tipo (Orden De Pago / Recibo De Cobro) + número USD al final
+  const rowRegex = /(\d{2}-\d{2}-\d{4})\s+(Orden De Pago|Recibo De Cobro)\s+-\s+\d+\s+ARS\s+[\d.,]+\s+[-\d.,]+\s+([-\d.,]+)\*?/gi;
+
+  let m: RegExpExecArray | null;
+  while ((m = rowRegex.exec(section)) !== null) {
+    const fecha = formatFecha(m[1]);
+    const concepto = m[2].toLowerCase();
+    const usdRaw = Math.abs(parseArgNum(m[3]));
+
+    if (usdRaw === 0 || isNaN(usdRaw)) continue;
+
+    rows.push({
+      fecha,
+      montoUSD: usdRaw,
+      // Orden De Pago   = Cocos te paga = retiro = entrada a tu bolsillo → Salida (TIR: +)
+      // Recibo De Cobro = vos depositás = aporte = salida de tu bolsillo → Ingreso (TIR: -)
+      tipo: concepto.includes('recibo') ? 'Ingreso' : 'Salida',
+    });
+  }
+
+  if (rows.length === 0) throw new Error('No se encontraron movimientos de ingreso/retiro en el PDF');
+
+  return { mesKey, rows };
+}
+
+// ── GET: meses ya cargados en Movimientos ─────────────────────────────────────
+
+export async function GET() {
+  try {
+    const id = process.env.SPREADSHEET_ID;
+    if (!id) return NextResponse.json({ error: 'Falta SPREADSHEET_ID' }, { status: 500 });
+
+    const auth = getAuthWrite();
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: id,
+      range: 'Movimientos!A:A',
+      valueRenderOption: 'FORMATTED_VALUE',
+    });
+
+    const rawRows = res.data.values ?? [];
+    const fechas = rawRows.slice(1).map((r) => r[0] ?? '').filter(Boolean);
+
+    const mesesCargados = new Set<string>();
+    for (const f of fechas) {
+      let d: Date | null = null;
+      if (/^\d{2}\/\d{2}\/\d{4}$/.test(f)) {
+        const [dd, mm, yyyy] = f.split('/');
+        d = new Date(Date.UTC(+yyyy, +mm - 1, +dd));
+      } else if (/^\d{4}-\d{2}-\d{2}$/.test(f)) {
+        const [yyyy, mm, dd] = f.split('-');
+        d = new Date(Date.UTC(+yyyy, +mm - 1, +dd));
+      }
+      if (d) mesesCargados.add(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`);
+    }
+
+    return NextResponse.json({ mesesCargados: Array.from(mesesCargados) });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}
+
+// ── POST: parse (action=parse) o confirm (action=confirm) ────────────────────
+
+export async function POST(req: NextRequest) {
+  try {
+    const url = new URL(req.url);
+    const action = url.searchParams.get('action') ?? 'parse';
+
+    // ── CONFIRM: recibe datos ya parseados y sube al sheet ────────────────
+    if (action === 'confirm') {
+      const body = await req.json() as {
+        mesKey: string;
+        rows: MovimientoRow[];
+      };
+
+      // Re-verificar mes duplicado
+      const getRes = await GET();
+      const getBody = await getRes.json();
+      if (body.mesKey && (getBody.mesesCargados as string[]).includes(body.mesKey)) {
+        return NextResponse.json(
+          { error: `El mes ${body.mesKey} ya tiene movimientos cargados.` },
+          { status: 409 }
+        );
+      }
+
+      const id = process.env.SPREADSHEET_ID!;
+      const auth = getAuthWrite();
+      const sheets = google.sheets({ version: 'v4', auth });
+
+      const sheetRows = body.rows.map((r) => [
+        r.fecha,
+        r.montoUSD.toFixed(2).replace('.', ','),
+        r.tipo,
+      ]);
+
+      await sheets.spreadsheets.values.append({
+        spreadsheetId: id,
+        range: 'Movimientos!A:C',
+        valueInputOption: 'USER_ENTERED',
+        requestBody: { values: sheetRows },
+      });
+
+      return NextResponse.json({
+        ok: true,
+        mes: body.mesKey,
+        filas: sheetRows.length,
+        movimientos: body.rows,
+      });
+    }
+
+    // ── PARSE: extrae datos del PDF sin subir al sheet ────────────────────
+    const formData = await req.formData();
+    const file = formData.get('pdf') as File | null;
+    if (!file) return NextResponse.json({ error: 'No se recibió PDF' }, { status: 400 });
+
+    const pdfBytes = await file.arrayBuffer();
+    const { extractText } = await import('unpdf');
+    const { text: fullText } = await extractText(new Uint8Array(pdfBytes), { mergePages: true });
+
+    let parsed: ParsedMovimientos;
+    try {
+      parsed = parseMovimientosText(fullText);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return NextResponse.json({ error: `Error parseando PDF: ${msg}` }, { status: 400 });
+    }
+
+    // Verificar mes duplicado antes de mostrar preview
+    const getRes = await GET();
+    const getBody = await getRes.json();
+    if (parsed.mesKey && (getBody.mesesCargados as string[]).includes(parsed.mesKey)) {
+      return NextResponse.json(
+        { error: `El mes ${parsed.mesKey} ya tiene movimientos cargados.` },
+        { status: 409 }
+      );
+    }
+
+    return NextResponse.json({
+      preview: true,
+      mes: parsed.mesKey,
+      filas: parsed.rows.length,
+      movimientos: parsed.rows,
+    });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}
