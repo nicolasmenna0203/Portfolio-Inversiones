@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -54,6 +55,15 @@ function TooltipContent({ active, payload, label, hideValues }: any) {
 
 export default function EvolucionChart({ data, tenenciasPorMes, hideValues }: Props) {
   const chartData = buildData(data, tenenciasPorMes);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 768px)');
+    setIsMobile(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
 
   return (
     <div style={{
@@ -75,11 +85,11 @@ export default function EvolucionChart({ data, tenenciasPorMes, hideValues }: Pr
       }}>
         Evolución de la Cartera
       </p>
-      <div style={{ flex: 1, minHeight: 220 }}>
+      <div style={{ flex: 1, minHeight: isMobile ? 0 : 220 }}>
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart
           data={chartData}
-          margin={{ top: 5, right: 45, left: 10, bottom: 0 }}
+          margin={{ top: 5, right: isMobile ? 8 : 45, left: isMobile ? 0 : 10, bottom: 0 }}
         >
           <defs>
             <linearGradient id="gradCartera" x1="0" y1="0" x2="0" y2="1">
@@ -94,7 +104,7 @@ export default function EvolucionChart({ data, tenenciasPorMes, hideValues }: Pr
           <CartesianGrid strokeDasharray="2 4" stroke="var(--border-subtle)" vertical={false} />
           <XAxis
             dataKey="fecha"
-            tick={{ fill: 'var(--muted)', fontSize: 11 }}
+            tick={{ fill: 'var(--muted)', fontSize: isMobile ? 9 : 11 }}
             tickLine={false}
             axisLine={false}
             interval="preserveStartEnd"
@@ -102,26 +112,28 @@ export default function EvolucionChart({ data, tenenciasPorMes, hideValues }: Pr
           <YAxis
             yAxisId="usd"
             tickFormatter={(v) => hideValues ? '···' : `$${(v / 1000).toFixed(0)}k`}
-            tick={{ fill: 'var(--muted)', fontSize: 11 }}
+            tick={{ fill: 'var(--muted)', fontSize: isMobile ? 9 : 11 }}
             tickLine={false}
             axisLine={false}
-            width={52}
+            width={isMobile ? 38 : 52}
           />
-          <YAxis
-            yAxisId="cnt"
-            orientation="right"
-            tickFormatter={(v) => String(Math.round(v))}
-            tick={{ fill: 'var(--muted)', fontSize: 11 }}
-            tickLine={false}
-            axisLine={false}
-            width={32}
-            allowDecimals={false}
-          />
+          {!isMobile && (
+            <YAxis
+              yAxisId="cnt"
+              orientation="right"
+              tickFormatter={(v) => String(Math.round(v))}
+              tick={{ fill: 'var(--muted)', fontSize: 11 }}
+              tickLine={false}
+              axisLine={false}
+              width={32}
+              allowDecimals={false}
+            />
+          )}
           <Tooltip content={<TooltipContent hideValues={hideValues} />} />
           <Legend
             iconType="plainline"
             iconSize={16}
-            wrapperStyle={{ color: 'var(--text-sec)', fontSize: 11, paddingTop: 14 }}
+            wrapperStyle={{ color: 'var(--text-sec)', fontSize: isMobile ? 10 : 11, paddingTop: 10 }}
           />
           <Area
             yAxisId="usd"
@@ -145,17 +157,19 @@ export default function EvolucionChart({ data, tenenciasPorMes, hideValues }: Pr
             dot={false}
             activeDot={{ r: 5, fill: '#3b82f6', strokeWidth: 0 }}
           />
-          <Line
-            yAxisId="cnt"
-            type="monotone"
-            dataKey="activos"
-            name="Activos"
-            stroke="#94a3b8"
-            strokeWidth={1.5}
-            strokeDasharray="3 5"
-            dot={false}
-            activeDot={{ r: 4, fill: '#94a3b8', strokeWidth: 0 }}
-          />
+          {!isMobile && (
+            <Line
+              yAxisId="cnt"
+              type="monotone"
+              dataKey="activos"
+              name="Activos"
+              stroke="#94a3b8"
+              strokeWidth={1.5}
+              strokeDasharray="3 5"
+              dot={false}
+              activeDot={{ r: 4, fill: '#94a3b8', strokeWidth: 0 }}
+            />
+          )}
         </ComposedChart>
       </ResponsiveContainer>
       </div>

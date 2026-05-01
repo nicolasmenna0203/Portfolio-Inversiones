@@ -9,65 +9,77 @@ interface KPICardProps {
 export default function KPICard({ label, value, sub, subColor, accentColor = 'var(--primary)' }: KPICardProps) {
   return (
     <div
-      className="flex flex-col gap-2 flex-1 min-w-0 relative overflow-hidden"
+      className="kpi-card-mobile"
       style={{
         background: 'var(--card)',
         border: '1px solid var(--border)',
         borderRadius: 12,
         padding: '14px 20px 12px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+        flex: 1,
+        minWidth: 0,
+        position: 'relative',
+        overflow: 'hidden',
       }}
     >
-      {/* Accent top line */}
       <div
         style={{
           position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
+          top: 0, left: 0, right: 0,
           height: 2,
           background: `linear-gradient(to right, ${accentColor}, transparent)`,
           borderRadius: '12px 12px 0 0',
         }}
       />
 
-      <p
-        style={{
-          fontSize: 10,
-          fontWeight: 600,
-          letterSpacing: '0.1em',
-          textTransform: 'uppercase',
-          color: 'var(--muted)',
-        }}
-      >
-        {label}
-      </p>
-
-      <p
-        style={{
-          fontSize: 22,
-          fontWeight: 700,
-          color: 'var(--text)',
-          letterSpacing: '-0.03em',
-          lineHeight: 1.1,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        {value}
-      </p>
-
-      {sub && (
+      <div className="kpi-left">
         <p
+          className="kpi-label"
           style={{
-            fontSize: 11,
-            color: subColor ?? 'var(--muted)',
-            marginTop: 2,
+            fontSize: 10,
+            fontWeight: 600,
+            letterSpacing: '0.1em',
+            textTransform: 'uppercase',
+            color: 'var(--muted)',
+            margin: 0,
           }}
         >
-          {sub}
+          {label}
         </p>
-      )}
+
+        <p
+          className="kpi-value"
+          style={{
+            fontSize: 22,
+            fontWeight: 700,
+            color: 'var(--text)',
+            letterSpacing: '-0.03em',
+            lineHeight: 1.1,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            margin: '4px 0 0',
+          }}
+        >
+          {value}
+        </p>
+
+        {sub && (
+          <p
+            className="kpi-sub"
+            style={{
+              fontSize: 11,
+              color: subColor ?? 'var(--muted)',
+              marginTop: 4,
+              marginBottom: 0,
+            }}
+          >
+            {sub}
+          </p>
+        )}
+      </div>
     </div>
   );
 }

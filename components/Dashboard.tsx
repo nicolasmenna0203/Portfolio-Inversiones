@@ -118,7 +118,7 @@ export default function Dashboard({ data }: Props) {
     }}>
 
       {/* ── Header ──────────────────────────────────────────────────────────── */}
-      <header style={{
+      <header className="mobile-header" style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -128,7 +128,7 @@ export default function Dashboard({ data }: Props) {
         borderBottom: '1px solid var(--border)',
         marginBottom: 0,
       }}>
-        <div>
+        <div className="mobile-header-title-block">
           <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--primary)', marginBottom: 4 }}>
             Portfolio · Finanzas Personales
           </p>
@@ -137,8 +137,8 @@ export default function Dashboard({ data }: Props) {
           </h1>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>
+        <div className="mobile-header-actions" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <p className="mobile-fecha" style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>
             Al{' '}
             <span style={{ color: 'var(--text-sec)', fontWeight: 500 }}>{kpis.fechaStr}</span>
           </p>
@@ -148,9 +148,9 @@ export default function Dashboard({ data }: Props) {
             title={hideValues ? 'Mostrar valores' : 'Ocultar valores'}
           >
             {hideValues ? (
-              <><span style={{ fontSize: 14 }}>👁</span>Mostrar</>
+              <><span style={{ fontSize: 14 }}>👁</span><span className="btn-label">Mostrar</span></>
             ) : (
-              <><span style={{ fontSize: 14 }}>🙈</span>Ocultar</>
+              <><span style={{ fontSize: 14 }}>🙈</span><span className="btn-label">Ocultar</span></>
             )}
           </button>
           <button
@@ -159,9 +159,9 @@ export default function Dashboard({ data }: Props) {
             title="Cambiar tema"
           >
             {theme === 'dark' ? (
-              <><span style={{ fontSize: 14 }}>☀</span>Claro</>
+              <><span style={{ fontSize: 14 }}>☀</span><span className="btn-label">Claro</span></>
             ) : (
-              <><span style={{ fontSize: 14 }}>☾</span>Oscuro</>
+              <><span style={{ fontSize: 14 }}>☾</span><span className="btn-label">Oscuro</span></>
             )}
           </button>
           <button
@@ -169,7 +169,7 @@ export default function Dashboard({ data }: Props) {
             onClick={() => setUploadOpen(true)}
             title="Cargar datos"
           >
-            <><span style={{ fontSize: 14 }}>⬆</span>Cargar</>
+            <><span style={{ fontSize: 14 }}>⬆</span><span className="btn-label">Cargar</span></>
           </button>
         </div>
       </header>
@@ -230,7 +230,7 @@ export default function Dashboard({ data }: Props) {
       )}
 
       {/* ── Nav tabs ────────────────────────────────────────────────────────── */}
-      <div style={{
+      <div className="mobile-tabs" style={{
         display: 'flex',
         alignItems: 'flex-end',
         gap: 16,
@@ -267,7 +267,7 @@ export default function Dashboard({ data }: Props) {
       {/* ── Tab: Resumen ────────────────────────────────────────────────────── */}
       {tab === 'resumen' && (
         <section style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1, minHeight: 0 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+          <div className="kpi-grid">
             <KPICard
               label="Total Cartera"
               value={hideValues ? '***' : fmtUSD(kpis.totalCartera)}
@@ -372,7 +372,7 @@ export default function Dashboard({ data }: Props) {
           </div>
 
           {/* Treemap + Evolución por — mismo tamaño */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, alignItems: 'stretch', flex: 1, minHeight: 0 }}>
+          <div className="tenencias-grid">
             <TreemapChart
               tenencias={tenenciasMes}
               totalCartera={totalMes}

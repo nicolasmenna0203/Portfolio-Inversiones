@@ -122,6 +122,104 @@ body {
   background: var(--chip-hover);
 }
 
+/* ── KPI grid ───────────────────────────────────────────────── */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+/* ── Tenencias grid ─────────────────────────────────────────── */
+.tenencias-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  align-items: stretch;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ──────────────────────────────────────────
+   MOBILE — todo fijo en pantalla, sin scroll
+─────────────────────────────────────────── */
+@media (max-width: 768px) {
+
+  /* Layout base */
+  html, body { overflow: hidden; height: 100%; }
+
+  main {
+    padding: 10px 12px 10px !important;
+    height: 100dvh !important;
+    gap: 0 !important;
+  }
+
+  /* ── Header compacto ── */
+  .mobile-header {
+    padding-bottom: 8px !important;
+    margin-bottom: 0 !important;
+    gap: 6px !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+  }
+
+  .mobile-header-title-block p { display: none; } /* ocultar subtítulo "Portfolio · Finanzas" */
+  .mobile-header-title-block h1 { font-size: 15px !important; }
+
+  .mobile-header-actions { gap: 5px !important; }
+
+  /* Fecha: ocultar en mobile */
+  .mobile-fecha { display: none !important; }
+
+  /* Botones: solo ícono, sin texto */
+  .theme-toggle .btn-label { display: none; }
+  .theme-toggle {
+    padding: 6px 8px !important;
+    font-size: 13px !important;
+  }
+
+  /* ── Tabs ── */
+  .mobile-tabs {
+    padding-top: 4px !important;
+    margin-bottom: 8px !important;
+  }
+
+  /* ── KPI grid: 3 columnas, cards muy compactas ── */
+  .kpi-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+
+  .kpi-card-mobile {
+    padding: 8px 10px 6px !important;
+    border-radius: 8px !important;
+    gap: 2px !important;
+  }
+
+  .kpi-card-mobile .kpi-label {
+    font-size: 8px !important;
+    letter-spacing: 0.06em !important;
+  }
+
+  .kpi-card-mobile .kpi-value {
+    font-size: 14px !important;
+    margin-top: 2px !important;
+  }
+
+  .kpi-card-mobile .kpi-sub {
+    font-size: 9px !important;
+    margin-top: 1px !important;
+    line-height: 1.2 !important;
+  }
+
+  /* ── Tenencias: dos gráficos uno sobre otro, flex ── */
+  .tenencias-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 6px;
+    min-height: 0;
+  }
+}
+
 /* ── Recharts overrides ─────────────────────────────────────── */
 .recharts-tooltip-wrapper .recharts-default-tooltip {
   background: var(--card) !important;
