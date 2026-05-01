@@ -117,18 +117,16 @@ export default function EvolucionChart({ data, tenenciasPorMes, hideValues }: Pr
             axisLine={false}
             width={isMobile ? 38 : 52}
           />
-          {!isMobile && (
-            <YAxis
-              yAxisId="cnt"
-              orientation="right"
-              tickFormatter={(v) => String(Math.round(v))}
-              tick={{ fill: 'var(--muted)', fontSize: 11 }}
-              tickLine={false}
-              axisLine={false}
-              width={32}
-              allowDecimals={false}
-            />
-          )}
+          <YAxis
+            yAxisId="cnt"
+            orientation="right"
+            tickFormatter={(v) => String(Math.round(v))}
+            tick={{ fill: 'var(--muted)', fontSize: isMobile ? 9 : 11 }}
+            tickLine={false}
+            axisLine={false}
+            width={isMobile ? 22 : 32}
+            allowDecimals={false}
+          />
           <Tooltip content={<TooltipContent hideValues={hideValues} />} />
           <Legend
             iconType="plainline"
@@ -157,19 +155,17 @@ export default function EvolucionChart({ data, tenenciasPorMes, hideValues }: Pr
             dot={false}
             activeDot={{ r: 5, fill: '#3b82f6', strokeWidth: 0 }}
           />
-          {!isMobile && (
-            <Line
-              yAxisId="cnt"
-              type="monotone"
-              dataKey="activos"
-              name="Activos"
-              stroke="#94a3b8"
-              strokeWidth={1.5}
-              strokeDasharray="3 5"
-              dot={false}
-              activeDot={{ r: 4, fill: '#94a3b8', strokeWidth: 0 }}
-            />
-          )}
+          <Line
+            yAxisId="cnt"
+            type="monotone"
+            dataKey="activos"
+            name="Activos"
+            stroke="#94a3b8"
+            strokeWidth={1.5}
+            strokeDasharray="3 5"
+            dot={false}
+            activeDot={{ r: 4, fill: '#94a3b8', strokeWidth: 0 }}
+          />
         </ComposedChart>
       </ResponsiveContainer>
       </div>

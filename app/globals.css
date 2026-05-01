@@ -148,14 +148,14 @@ body {
   html, body { overflow: hidden; height: 100%; }
 
   main {
-    padding: 10px 12px 10px !important;
+    padding: 12px 14px 14px !important;
     height: 100dvh !important;
     gap: 0 !important;
   }
 
   /* ── Header compacto ── */
   .mobile-header {
-    padding-bottom: 8px !important;
+    padding-bottom: 10px !important;
     margin-bottom: 0 !important;
     gap: 6px !important;
     flex-wrap: nowrap !important;
@@ -179,18 +179,18 @@ body {
 
   /* ── Tabs ── */
   .mobile-tabs {
-    padding-top: 4px !important;
-    margin-bottom: 8px !important;
+    padding-top: 6px !important;
+    margin-bottom: 10px !important;
   }
 
   /* ── KPI grid: 3 columnas, cards muy compactas ── */
   .kpi-grid {
     grid-template-columns: repeat(3, 1fr);
-    gap: 6px;
+    gap: 8px;
   }
 
   .kpi-card-mobile {
-    padding: 8px 10px 6px !important;
+    padding: 10px 10px 8px !important;
     border-radius: 8px !important;
     gap: 2px !important;
   }
@@ -215,7 +215,7 @@ body {
   .tenencias-grid {
     grid-template-columns: 1fr;
     grid-template-rows: 1fr 1fr;
-    gap: 6px;
+    gap: 8px;
     min-height: 0;
   }
 }
