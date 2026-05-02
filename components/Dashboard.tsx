@@ -10,7 +10,8 @@ import TreemapChart from './TreemapChart';
 import EvolucionTipoChart from './EvolucionTipoChart';
 import MonthSlider from './MonthSlider';
 import UploadTenencias from './UploadTenencias';
-type Tab = 'resumen' | 'tenencias';
+import InformeTab from './InformeTab';
+type Tab = 'resumen' | 'tenencias' | 'informe';
 
 const DIMS_TENENCIAS = [
   { key: 'TIPO',       label: 'Tipo de Activo'    },
@@ -24,6 +25,7 @@ type DimTenencias = typeof DIMS_TENENCIAS[number]['key'];
 const TABS: { id: Tab; label: string }[] = [
   { id: 'resumen',   label: 'Resumen'   },
   { id: 'tenencias', label: 'Tenencias' },
+  { id: 'informe',   label: 'Informe'   },
 ];
 
 // ── Filtro activo pill ────────────────────────────────────────────────────────
@@ -393,6 +395,20 @@ export default function Dashboard({ data }: Props) {
         </section>
       )}
 
+
+
+      {/* ── Tab: Informe ────────────────────────────────────────────────────── */}
+      {tab === 'informe' && (
+        <section style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+          <InformeTab
+            resumenSeries={resumenSeries}
+            tenenciasPorMes={tenenciasPorMes}
+            mesesDisponibles={mesesDisponibles}
+            totalPorMes={totalPorMes}
+            hideValues={hideValues}
+          />
+        </section>
+      )}
 
     </main>
   );
