@@ -68,7 +68,10 @@ function buildData(
 ) {
   const sortedKeys = Object.keys(tenenciasPorMes).sort();
   return sortedKeys.map((key, i) => {
-    const rows = tenenciasPorMes[key] ?? [];
+    const allRows = tenenciasPorMes[key] ?? [];
+    const rows = dim === 'SECTOR_GEO'
+      ? allRows.filter(r => r.RENTA === 'VAR' || r.RENTA === 'VARIABLE')
+      : allRows;
     const entry: Record<string, any> = { fecha: mesesDisponibles[i] ?? key };
     for (const g of groups) {
       entry[g] = rows
@@ -124,7 +127,10 @@ export default function EvolucionTipoChart({ tenenciasPorMes, mesesDisponibles, 
 
   const groupsSet = new Set<string>();
   for (const rows of Object.values(tenenciasPorMes)) {
-    for (const r of rows) groupsSet.add(getGroupLabel(r, dim));
+    const src = dim === 'SECTOR_GEO'
+      ? rows.filter(r => r.RENTA === 'VAR' || r.RENTA === 'VARIABLE')
+      : rows;
+    for (const r of src) groupsSet.add(getGroupLabel(r, dim));
   }
   const groups = Array.from(groupsSet).sort();
   const data   = buildData(tenenciasPorMes, mesesDisponibles, dim, groups);
