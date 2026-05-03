@@ -6,9 +6,6 @@ import { fmtUSD, fmtPct } from '@/lib/parser';
 import { RIESGO_LABEL, RENTA_LABEL, GEO_LABEL, MONEDA_LABEL } from '@/lib/constants';
 import KPICard from './KPICard';
 import EvolucionChart from './EvolucionChart';
-import EvolucionChartA from './EvolucionChartA';
-import EvolucionChartB from './EvolucionChartB';
-import EvolucionChartC from './EvolucionChartC';
 import TreemapChart from './TreemapChart';
 import EvolucionTipoChart from './EvolucionTipoChart';
 import MonthSlider from './MonthSlider';
@@ -64,8 +61,7 @@ export default function Dashboard({ data }: Props) {
   const { kpis, resumenSeries, tenenciasPorMes, mesesDisponibles, totalPorMes } = data;
 
   const [tab, setTab]               = useState<Tab>('resumen');
-  const [chartMode, setChartMode]   = useState<'original' | 'A' | 'B' | 'C'>('original');
-  const [uploadOpen, setUploadOpen] = useState(false);
+const [uploadOpen, setUploadOpen] = useState(false);
   const [mesSel, setMesSel]         = useState(mesesDisponibles[mesesDisponibles.length - 1] ?? '');
   const [theme, setTheme]           = useState<'dark' | 'light'>('dark');
   const [hideValues, setHideValues] = useState(false);
@@ -297,47 +293,8 @@ export default function Dashboard({ data }: Props) {
             />
           </div>
 
-          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {/* Selector de modo de visualización */}
-            <div style={{ display: 'flex', gap: 6, flexShrink: 0, flexWrap: 'wrap' }}>
-              {([
-                { id: 'original', label: 'Barras + Áreas' },
-                { id: 'A',        label: 'Relleno dinámico' },
-                { id: 'B',        label: 'Banda rendimiento' },
-                { id: 'C',        label: 'Línea coloreada' },
-              ] as const).map(({ id, label }) => (
-                <button
-                  key={id}
-                  onClick={() => setChartMode(id)}
-                  style={{
-                    padding: '3px 10px',
-                    borderRadius: 20,
-                    fontSize: 11,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    border: `1px solid ${chartMode === id ? 'var(--primary)' : 'var(--border)'}`,
-                    background: chartMode === id ? 'var(--primary-dim)' : 'transparent',
-                    color: chartMode === id ? 'var(--primary)' : 'var(--muted)',
-                    transition: 'all 0.12s',
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            {chartMode === 'original' && (
-              <EvolucionChart data={resumenSeries} tenenciasPorMes={tenenciasPorMes} hideValues={hideValues} />
-            )}
-            {chartMode === 'A' && (
-              <EvolucionChartA data={resumenSeries} tenenciasPorMes={tenenciasPorMes} hideValues={hideValues} />
-            )}
-            {chartMode === 'B' && (
-              <EvolucionChartB data={resumenSeries} tenenciasPorMes={tenenciasPorMes} hideValues={hideValues} />
-            )}
-            {chartMode === 'C' && (
-              <EvolucionChartC data={resumenSeries} tenenciasPorMes={tenenciasPorMes} hideValues={hideValues} />
-            )}
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+            <EvolucionChart data={resumenSeries} tenenciasPorMes={tenenciasPorMes} hideValues={hideValues} />
           </div>
         </section>
       )}

@@ -8,8 +8,8 @@ import {
   RENTA_COLOR, GEO_COLOR, MONEDA_LABEL, RENTA_LABEL, GEO_LABEL,
 } from '@/lib/constants';
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  ReferenceLine, Cell,
+  Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  Cell,
 } from 'recharts';
 
 interface Props {
@@ -56,31 +56,6 @@ function Card({ children, style }: { children: React.ReactNode; style?: React.CS
   );
 }
 
-// ── tooltip del bar chart ─────────────────────────────────────────────────────
-
-function TooltipDelta({ active, payload, label }: {
-  active?: boolean; payload?: { value: number; dataKey: string }[]; label?: string;
-}) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div style={{
-      background: 'var(--card)', border: '1px solid var(--border)',
-      borderRadius: 8, padding: '8px 12px', fontSize: 12,
-    }}>
-      <p style={{ margin: 0, color: 'var(--text-sec)', fontWeight: 600 }}>{label}</p>
-      {payload.map((p) => {
-        const val = p.value;
-        const isGanancia = p.dataKey === 'ganancia';
-        return (
-          <p key={p.dataKey} style={{ margin: '4px 0 0', color: val >= 0 ? 'var(--up)' : 'var(--down)', fontWeight: 700 }}>
-            {isGanancia ? 'Ganancia: ' : 'Δ Cartera: '}
-            {signo(val)} {fmtUSD(Math.abs(val))}
-          </p>
-        );
-      })}
-    </div>
-  );
-}
 
 // ── dimensiones ───────────────────────────────────────────────────────────────
 
@@ -244,12 +219,7 @@ export default function InformeTab({
   }
 
   const {
-    mesActual, mesAnterior,
-    cartActual, cartAnterior, deltaCartera, pctCartera,
-    aportActual, aportAnterior, deltaAporte,
-    gananciaPura, pctGananciaPura,
-    rendActual, rendAnterior, deltaRend,
-    barData,
+    cartAnterior,
     dimVariaciones,
   } = computed;
 
@@ -263,103 +233,6 @@ export default function InformeTab({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0, flex: 1, minHeight: 0, overflowY: 'auto', paddingBottom: 24 }}>
-
-      {/* ── Período ──────────────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0 12px', flexShrink: 0 }}>
-        <span style={{ fontSize: 12, color: 'var(--muted)' }}>Comparando</span>
-        <span style={{
-          fontSize: 12, fontWeight: 700, color: 'var(--text)',
-          background: 'var(--card)', border: '1px solid var(--border)',
-          borderRadius: 6, padding: '2px 8px',
-        }}>{mesAnterior}</span>
-        <span style={{ fontSize: 12, color: 'var(--muted)' }}>→</span>
-        <span style={{
-          fontSize: 12, fontWeight: 700, color: 'var(--primary)',
-          background: 'var(--primary-dim)', border: '1px solid var(--primary)',
-          borderRadius: 6, padding: '2px 8px',
-        }}>{mesActual}</span>
-      </div>
-
-      {/* ── KPIs ─────────────────────────────────────────────────────────────── */}
-      <SectionTitle>Variaciones principales</SectionTitle>
-      <div className="kpi-grid" style={{ marginTop: 10 }}>
-
-        <Card>
-          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--muted)', margin: '0 0 6px' }}>
-            Total Cartera
-          </p>
-          <p style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)', margin: '0 0 4px' }}>
-            {hideValues ? '***' : fmtUSD(cartActual)}
-          </p>
-          <div style={{ borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 6 }}>
-            <p style={{ fontSize: 11, color: 'var(--muted)', margin: '0 0 2px' }}>vs {mesAnterior}: {hideValues ? '***' : fmtUSD(cartAnterior)}</p>
-            {!hideValues && <VariacionBadge value={deltaCartera} pct={pctCartera} />}
-          </div>
-        </Card>
-
-        <Card>
-          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--muted)', margin: '0 0 4px' }}>
-            Ganancia Pura del Mes
-          </p>
-          <p style={{ fontSize: 10, color: 'var(--muted)', margin: '0 0 6px', fontStyle: 'italic' }}>
-            Δ cartera − aportes netos
-          </p>
-          <p style={{ fontSize: 20, fontWeight: 700, color: gananciaPura >= 0 ? 'var(--up)' : 'var(--down)', margin: '0 0 4px' }}>
-            {hideValues ? '***' : `${signo(gananciaPura)} ${fmtUSD(Math.abs(gananciaPura))}`}
-          </p>
-          <div style={{ borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 6 }}>
-            <p style={{ fontSize: 11, color: 'var(--muted)', margin: '0 0 2px' }}>
-              Aportes del mes: {hideValues ? '***' : fmtUSD(aportActual)}
-              {aportAnterior > 0 && !hideValues && ` (ant: ${fmtUSD(aportAnterior)})`}
-            </p>
-            {!hideValues && (
-              <span style={{ fontSize: 12, fontWeight: 700, color: gananciaPura >= 0 ? 'var(--up)' : 'var(--down)' }}>
-                {fmtPct(pctGananciaPura)} sobre cartera anterior
-              </span>
-            )}
-          </div>
-        </Card>
-
-        <Card>
-          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--muted)', margin: '0 0 6px' }}>
-            Rendimiento Acumulado
-          </p>
-          <p style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)', margin: '0 0 4px' }}>
-            {hideValues ? '***' : fmtUSD(rendActual)}
-          </p>
-          <div style={{ borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 6 }}>
-            <p style={{ fontSize: 11, color: 'var(--muted)', margin: '0 0 2px' }}>vs {mesAnterior}: {hideValues ? '***' : fmtUSD(rendAnterior)}</p>
-            {!hideValues && <VariacionBadge value={deltaRend} pct={rendAnterior !== 0 ? (deltaRend / Math.abs(rendAnterior)) * 100 : 0} />}
-          </div>
-        </Card>
-
-      </div>
-
-      {/* ── Gráfico ganancia pura vs delta cartera ────────────────────────────── */}
-      <SectionTitle>Ganancia pura mensual</SectionTitle>
-      <Card style={{ marginTop: 10, padding: '16px 8px 8px' }}>
-        <p style={{ fontSize: 11, color: 'var(--muted)', margin: '0 0 8px 12px' }}>
-          Barra sólida = ganancia pura (sin aportes) · Trazo = variación total de cartera
-        </p>
-        <ResponsiveContainer width="100%" height={170}>
-          <BarChart data={barData} margin={{ top: 4, right: 12, left: 12, bottom: 0 }}>
-            <XAxis dataKey="mes" tick={{ fill: 'var(--muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
-            <YAxis
-              tick={{ fill: 'var(--muted)', fontSize: 10 }}
-              axisLine={false} tickLine={false}
-              tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`}
-              width={44}
-            />
-            <Tooltip content={<TooltipDelta />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
-            <ReferenceLine y={0} stroke="var(--border)" strokeWidth={1} />
-            <Bar dataKey="ganancia" radius={[4, 4, 0, 0]} maxBarSize={32}>
-              {barData.map((e, i) => (
-                <Cell key={i} fill={e.ganancia >= 0 ? 'var(--up)' : 'var(--down)'} fillOpacity={0.85} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </Card>
 
       {/* ── Variación por dimensión ──────────────────────────────────────────── */}
       {DIMS.map(({ key, label }) => {
@@ -426,14 +299,6 @@ function computeInforme(
   const mesActual  = mesesDisponibles[mesesDisponibles.length - 1] ?? keyActual;
   const mesAnterior = mesesDisponibles[mesesDisponibles.length - 2] ?? keyAnt;
 
-  // Barras: ganancia pura por mes histórico
-  const barData = resumenSeries.slice(1).map((row, i) => {
-    const prevCartera = resumenSeries[i].total_cartera;
-    const deltaCart   = row.total_cartera - prevCartera;
-    const ganancia    = deltaCart - row.aportes;
-    return { mes: row.fecha, ganancia, delta: deltaCart };
-  });
-
   // Variación por dimensión con participación relativa
   const DIMS: DimKey[] = ['TIPO', 'RIESGO', 'MONEDA', 'RENTA', 'SECTOR_GEO'];
   const dimVariaciones = {} as DimVariacionMap;
@@ -464,7 +329,6 @@ function computeInforme(
     aportActual, aportAnterior, deltaAporte,
     gananciaPura, pctGananciaPura,
     rendActual, rendAnterior, deltaRend,
-    barData,
     dimVariaciones,
   };
 }

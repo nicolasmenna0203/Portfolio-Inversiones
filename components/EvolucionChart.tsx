@@ -80,11 +80,6 @@ export default function EvolucionChart({ data, tenenciasPorMes, hideValues }: Pr
   const chartData = buildData(data, tenenciasPorMes);
   const [isMobile, setIsMobile] = useState(false);
 
-  const ganMax = Math.max(
-    ...chartData.map(d => Math.abs(d.ganancia ?? 0)).filter(v => v > 0),
-    1
-  );
-  const ganDomain: [number, number] = [-ganMax * 1.2, ganMax * 1.2];
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 768px)');
@@ -146,8 +141,12 @@ export default function EvolucionChart({ data, tenenciasPorMes, hideValues }: Pr
           />
           <YAxis
             yAxisId="gan"
-            orientation="right"
-            domain={ganDomain}
+            orientation="left"
+            domain={([min, max]: [number, number]) => {
+              const absMax = Math.max(Math.abs(min), Math.abs(max), 1);
+              const usdMax = Math.max(...chartData.map(d => d.total_cartera));
+              return [-absMax, usdMax];
+            }}
             hide={true}
           />
           <YAxis
