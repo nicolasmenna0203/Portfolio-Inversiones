@@ -11,7 +11,9 @@ import EvolucionTipoChart from './EvolucionTipoChart';
 import MonthSlider from './MonthSlider';
 import UploadTenencias from './UploadTenencias';
 import InformeTab from './InformeTab';
-type Tab = 'resumen' | 'tenencias' | 'informe';
+import ChatBot from './ChatBot';
+import ProyeccionesTab from './ProyeccionesTab';
+type Tab = 'resumen' | 'tenencias' | 'informe' | 'proyecciones';
 
 const DIMS_TENENCIAS = [
   { key: 'TIPO',       label: 'Tipo de Activo'    },
@@ -23,9 +25,10 @@ const DIMS_TENENCIAS = [
 type DimTenencias = typeof DIMS_TENENCIAS[number]['key'];
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'resumen',   label: 'Resumen'   },
-  { id: 'tenencias', label: 'Tenencias' },
-  { id: 'informe',   label: 'Informe'   },
+  { id: 'resumen',      label: 'Resumen'      },
+  { id: 'tenencias',    label: 'Tenencias'    },
+  { id: 'informe',      label: 'Informe'      },
+  { id: 'proyecciones', label: 'Proyecciones' },
 ];
 
 // ── Filtro activo pill ────────────────────────────────────────────────────────
@@ -405,6 +408,16 @@ const [uploadOpen, setUploadOpen] = useState(false);
           />
         </section>
       )}
+
+      {/* ── Tab: Proyecciones ───────────────────────────────────────────────── */}
+      {tab === 'proyecciones' && (
+        <section style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+          <ProyeccionesTab data={data} hideValues={hideValues} />
+        </section>
+      )}
+
+      {/* ── Bot flotante ────────────────────────────────────────────────────── */}
+      <ChatBot data={data} />
 
     </main>
   );

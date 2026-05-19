@@ -1,0 +1,648 @@
+'use client';
+
+import { useState, useMemo } from 'react';
+import {
+  ComposedChart, Line, Area, XAxis, YAxis, Tooltip,
+  CartesianGrid, ResponsiveContainer, ReferenceLine, Legend,
+} from 'recharts';
+import type { DashboardData, TenenciaActual } from '@/types';
+import { fmtUSD } from '@/lib/parser';
+import {
+  RIESGO_LABEL, RENTA_LABEL, GEO_LABEL, MONEDA_LABEL,
+  PALETA_TIPO, RIESGO_COLOR, RENTA_COLOR, GEO_COLOR, MONEDA_COLOR,
+} from '@/lib/constants';
+
+interface Props {
+  data: DashboardData;
+  hideValues: boolean;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function SliderRow({
+  label, value, min, max, step, fmt, onChange,
+}: {
+  label: string; value: number; min: number; max: number;
+  step: number; fmt: (v: number) => string; onChange: (v: number) => void;
+}) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          {label}
+        </span>
+        <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--primary)' }}>
+          {fmt(value)}
+        </span>
+      </div>
+      <input
+        type="range" min={min} max={max} step={step} value={value}
+        onChange={e => onChange(Number(e.target.value))}
+        style={{ width: '100%', accentColor: 'var(--primary)', cursor: 'pointer' }}
+      />
+      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+        <span style={{ fontSize: 10, color: 'var(--muted)' }}>{fmt(min)}</span>
+        <span style={{ fontSize: 10, color: 'var(--muted)' }}>{fmt(max)}</span>
+      </div>
+    </div>
+  );
+}
+
+interface TooltipPayload {
+  name: string;
+  value: number;
+  color: string;
+  dataKey: string;
+}
+
+function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: TooltipPayload[]; label?: string }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={{
+      background: 'var(--card)', border: '1px solid var(--border)',
+      borderRadius: 8, padding: '10px 14px', fontSize: 12,
+    }}>
+      <p style={{ margin: '0 0 6px', color: 'var(--muted)', fontWeight: 600 }}>{label}</p>
+      {payload.map((p) => (
+        p.value != null && (
+          <p key={p.dataKey} style={{ margin: '2px 0', color: p.color }}>
+            {p.name}: <strong>{fmtUSD(p.value)}</strong>
+          </p>
+        )
+      ))}
+    </div>
+  );
+}
+
+// ── Proyección compuesta ──────────────────────────────────────────────────────
+
+function buildProyeccion(
+  totalActual: number,
+  aporteMensual: number,
+  tasaAnual: number,
+  horizonteMeses: number,
+): { mes: number; proyectado: number }[] {
+  const tasaMensual = Math.pow(1 + tasaAnual / 100, 1 / 12) - 1;
+  const puntos: { mes: number; proyectado: number }[] = [];
+  let acum = totalActual;
+  for (let i = 1; i <= horizonteMeses; i++) {
+    acum = acum * (1 + tasaMensual) + aporteMensual;
+    puntos.push({ mes: i, proyectado: Math.round(acum) });
+  }
+  return puntos;
+}
+
+// ── Etiqueta de mes relativo ──────────────────────────────────────────────────
+
+function labelMesFuturo(mesOffset: number, ultimaFecha: string): string {
+  const mesesES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+  // ultimaFecha es tipo "Mar-2025"
+  const partes = ultimaFecha.split('-');
+  const mesesMap: Record<string, number> = {
+    Ene: 0, Feb: 1, Mar: 2, Abr: 3, May: 4, Jun: 5,
+    Jul: 6, Ago: 7, Sep: 8, Oct: 9, Nov: 10, Dic: 11,
+  };
+  const mesInicial = mesesMap[partes[0]] ?? 0;
+  const anioInicial = parseInt(partes[1]) || new Date().getFullYear();
+  const total = mesInicial + mesOffset;
+  const mes = total % 12;
+  const anio = anioInicial + Math.floor(total / 12);
+  return `${mesesES[mes]}-${anio}`;
+}
+
+// ── Tipos para objetivos de composición ──────────────────────────────────────
+
+type DimObj = 'SECTOR_GEO' | 'TIPO' | 'RENTA' | 'RIESGO' | 'MONEDA';
+
+interface ObjetivoDim {
+  [categoria: string]: number; // % objetivo (0-100)
+}
+
+// Mismo orden y labels que InformeTab
+const DIMS_CONFIG: { key: DimObj; label: string }[] = [
+  { key: 'TIPO',       label: 'Tipo de Activo' },
+  { key: 'RIESGO',     label: 'Nivel de Riesgo'},
+  { key: 'MONEDA',     label: 'Moneda'          },
+  { key: 'RENTA',      label: 'Tipo de Renta'  },
+  { key: 'SECTOR_GEO', label: 'Geografía'      },
+];
+
+// Misma lógica de color que InformeTab / TreemapChart
+function colorParaCat(dim: DimObj, cat: string): string {
+  if (dim === 'TIPO')       return PALETA_TIPO[cat]   ?? '#aaaaaa';
+  if (dim === 'RIESGO')     return RIESGO_COLOR[cat]  ?? '#aaaaaa';
+  if (dim === 'MONEDA')     return MONEDA_COLOR[cat]  ?? '#aaaaaa';
+  if (dim === 'RENTA')      return RENTA_COLOR[cat]   ?? '#aaaaaa';
+  if (dim === 'SECTOR_GEO') return GEO_COLOR[cat]     ?? '#aaaaaa';
+  return '#aaaaaa';
+}
+
+// Misma lógica de resolución de etiqueta que InformeTab (getLabel)
+function resolverCategoria(t: TenenciaActual, dim: DimObj): string {
+  if (dim === 'SECTOR_GEO') return GEO_LABEL[t.SECTOR_GEO]      ?? t.SECTOR_GEO ?? 'Sin dato';
+  if (dim === 'RENTA')      return RENTA_LABEL[t.RENTA]          ?? t.RENTA      ?? 'Sin dato';
+  if (dim === 'RIESGO')     return RIESGO_LABEL[Number(t.RIESGO)] ?? 'Sin dato';
+  if (dim === 'MONEDA')     return MONEDA_LABEL[t.MONEDA]        ?? t.MONEDA     ?? 'Sin dato';
+  return t.TIPO ?? 'Sin dato';
+}
+
+function getCategorias(tenencias: TenenciaActual[], dim: DimObj): string[] {
+  const set = new Set<string>();
+  for (const t of tenencias) set.add(resolverCategoria(t, dim));
+  return Array.from(set).sort();
+}
+
+function getPctReal(tenencias: TenenciaActual[], dim: DimObj): Record<string, number> {
+  const total = tenencias.reduce((s, t) => s + t.tenencia_usd, 0);
+  if (total === 0) return {};
+  const map: Record<string, number> = {};
+  for (const t of tenencias) {
+    const cat = resolverCategoria(t, dim);
+    map[cat] = (map[cat] ?? 0) + (t.tenencia_usd / total) * 100;
+  }
+  return map;
+}
+
+// Suma de objetivos para la dimensión activa
+function sumaObjetivos(obj: ObjetivoDim): number {
+  return Object.values(obj).reduce((s, v) => s + v, 0);
+}
+
+// Barra de progreso con objetivo
+function BarraObjetivo({
+  categoria, pctReal, pctObj, color,
+}: {
+  categoria: string; pctReal: number; pctObj: number; color: string;
+}) {
+  const tieneObjetivo = pctObj > 0;
+  const diff = pctReal - pctObj;
+  const diffLabel = diff > 0 ? `+${diff.toFixed(1)}%` : `${diff.toFixed(1)}%`;
+  const diffColor = Math.abs(diff) <= 3 ? 'var(--up)' : Math.abs(diff) <= 8 ? '#ffa15a' : 'var(--down)';
+  const enRango = tieneObjetivo && Math.abs(diff) <= 3;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{categoria}</span>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+            Real: <strong style={{ color: 'var(--text)' }}>{pctReal.toFixed(1)}%</strong>
+          </span>
+          <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+            Obj: <strong style={{ color: tieneObjetivo ? color : 'var(--muted)' }}>
+              {tieneObjetivo ? `${pctObj.toFixed(0)}%` : '—'}
+            </strong>
+          </span>
+          {tieneObjetivo && (
+            <span style={{
+              fontSize: 10, fontWeight: 700, color: diffColor,
+              background: enRango ? 'rgba(45,198,83,0.12)' : 'transparent',
+              padding: '1px 5px',
+              borderRadius: 4,
+            }}>
+              {enRango ? '✓' : diffLabel}
+            </span>
+          )}
+        </div>
+      </div>
+      {/* Barra: track completo = 100% de la cartera */}
+      <div style={{ position: 'relative', height: 8, background: 'var(--border)', borderRadius: 4, overflow: 'hidden' }}>
+        {/* Relleno real */}
+        <div style={{
+          position: 'absolute', left: 0, top: 0, height: '100%',
+          width: `${Math.min(100, pctReal)}%`,
+          background: color,
+          borderRadius: 4,
+          opacity: 0.85,
+          transition: 'width 0.3s',
+        }} />
+        {/* Marcador objetivo: línea vertical blanca sobre la barra */}
+        {tieneObjetivo && (
+          <div style={{
+            position: 'absolute',
+            left: `${Math.min(99, pctObj)}%`,
+            top: 0, bottom: 0,
+            width: 2,
+            background: 'var(--text)',
+            opacity: 0.6,
+            transform: 'translateX(-50%)',
+          }} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Sección de objetivos de composición ──────────────────────────────────────
+
+// Redondea porcentajes garantizando que sumen exactamente 100 (largest remainder)
+function initObjetivosDim(tenencias: TenenciaActual[], dim: DimObj): ObjetivoDim {
+  const real = getPctReal(tenencias, dim);
+  const entries = Object.entries(real);
+  if (entries.length === 0) return {};
+
+  const floors = entries.map(([cat, pct]) => ({ cat, floor: Math.floor(pct), remainder: pct - Math.floor(pct) }));
+  const totalFloor = floors.reduce((s, e) => s + e.floor, 0);
+  const deficit = 100 - totalFloor;
+
+  // Distribuir el déficit a las categorías con mayor remainder
+  const sorted = [...floors].sort((a, b) => b.remainder - a.remainder);
+  const result: ObjetivoDim = {};
+  for (let i = 0; i < floors.length; i++) {
+    result[sorted[i].cat] = sorted[i].floor + (i < deficit ? 1 : 0);
+  }
+  return result;
+}
+
+function ObjetivosComposicion({ tenencias }: { tenencias: TenenciaActual[] }) {
+  const [dimActiva, setDimActiva] = useState<DimObj>('TIPO');
+
+  // Inicializar con la composición real actual de cada dimensión
+  const [objetivosPorDim, setObjetivosPorDim] = useState<Record<DimObj, ObjetivoDim>>(() => ({
+    TIPO:       initObjetivosDim(tenencias, 'TIPO'),
+    RIESGO:     initObjetivosDim(tenencias, 'RIESGO'),
+    MONEDA:     initObjetivosDim(tenencias, 'MONEDA'),
+    RENTA:      initObjetivosDim(tenencias, 'RENTA'),
+    SECTOR_GEO: initObjetivosDim(tenencias, 'SECTOR_GEO'),
+  }));
+
+  const categorias = useMemo(() => getCategorias(tenencias, dimActiva), [tenencias, dimActiva]);
+  const pctReal    = useMemo(() => getPctReal(tenencias, dimActiva),    [tenencias, dimActiva]);
+  const objetivos  = objetivosPorDim[dimActiva];
+  const suma       = sumaObjetivos(objetivos);
+  const resta      = Math.max(0, 100 - suma);
+
+  function setObjetivo(cat: string, val: number) {
+    setObjetivosPorDim(prev => ({
+      ...prev,
+      [dimActiva]: { ...prev[dimActiva], [cat]: val },
+    }));
+  }
+
+  return (
+    <div style={{
+      background: 'var(--card)',
+      border: '1px solid var(--border)',
+      borderRadius: 12,
+      padding: '18px 20px',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 16,
+    }}>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+        <p style={{ margin: 0, fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--primary)' }}>
+          Objetivos de Composición
+        </p>
+        {/* Selector de dimensión */}
+        <div style={{ display: 'flex', gap: 4 }}>
+          {DIMS_CONFIG.map(d => (
+            <button
+              key={d.key}
+              onClick={() => setDimActiva(d.key)}
+              style={{
+                padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 500,
+                cursor: 'pointer', border: '1px solid',
+                borderColor: dimActiva === d.key ? 'var(--primary)' : 'var(--border)',
+                background:  dimActiva === d.key ? 'var(--primary-dim)' : 'transparent',
+                color:       dimActiva === d.key ? 'var(--primary)' : 'var(--muted)',
+                transition: 'all 0.12s',
+              }}
+            >{d.label}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Indicador de suma */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ flex: 1, height: 4, background: 'var(--bg)', borderRadius: 2, overflow: 'hidden' }}>
+          <div style={{
+            height: '100%',
+            width: `${Math.min(100, suma)}%`,
+            background: suma > 100 ? 'var(--down)' : suma === 100 ? 'var(--up)' : 'var(--primary)',
+            borderRadius: 2,
+            transition: 'width 0.2s, background 0.2s',
+          }} />
+        </div>
+        <span style={{
+          fontSize: 11, fontWeight: 700,
+          color: suma > 100 ? 'var(--down)' : suma === 100 ? 'var(--up)' : 'var(--muted)',
+          minWidth: 90, textAlign: 'right',
+        }}>
+          {suma > 100
+            ? `Excede ${(suma - 100).toFixed(0)}%`
+            : suma === 100
+            ? 'Suma 100% ✓'
+            : `Disponible: ${resta.toFixed(0)}%`}
+        </span>
+      </div>
+
+      {/* Filas por categoría */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {categorias.map((cat) => {
+          const color = colorParaCat(dimActiva, cat);
+          const pctR = pctReal[cat] ?? 0;
+          const pctO = objetivos[cat] ?? 0;
+          return (
+            <div key={cat} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <BarraObjetivo categoria={cat} pctReal={pctR} pctObj={pctO} color={color} />
+              {/* Slider de objetivo */}
+              <input
+                type="range" min={0} max={100} step={1}
+                value={pctO}
+                onChange={e => setObjetivo(cat, Number(e.target.value))}
+                style={{ width: '100%', accentColor: color }}
+                className="slider-cat"
+              />
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Nota si no hay tenencias */}
+      {categorias.length === 0 && (
+        <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)', textAlign: 'center' }}>
+          No hay tenencias disponibles para el último mes.
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ── Componente principal ──────────────────────────────────────────────────────
+
+export default function ProyeccionesTab({ data, hideValues }: Props) {
+  const { kpis, resumenSeries, tenenciasPorMes } = data;
+  const totalActual = kpis.totalCartera;
+
+  // Tenencias del último mes disponible
+  const tenenciasActuales = useMemo(() => {
+    const sorted = Object.keys(tenenciasPorMes).sort();
+    return tenenciasPorMes[sorted[sorted.length - 1]] ?? [];
+  }, [tenenciasPorMes]);
+  const ultimaFecha = resumenSeries[resumenSeries.length - 1]?.fecha ?? '';
+
+  // ── Controles
+  const [aporte,    setAporte]    = useState(500);
+  const [tasa,      setTasa]      = useState(10);
+  const [horizonte, setHorizonte] = useState(60);   // meses
+  const [objetivo,  setObjetivo]  = useState(Math.round(totalActual * 2 / 1000) * 1000 || 100000);
+
+  // ── Datos históricos normalizados para el gráfico
+  const historico = useMemo(() =>
+    resumenSeries.map(r => ({
+      label: r.fecha,
+      real: Math.round(r.total_cartera),
+      proyectado: undefined as number | undefined,
+    })),
+  [resumenSeries]);
+
+  // ── Proyección futura
+  const proyeccion = useMemo(() =>
+    buildProyeccion(totalActual, aporte, tasa, horizonte),
+  [totalActual, aporte, tasa, horizonte]);
+
+  // ── Datos combinados para el gráfico
+  const chartData = useMemo(() => {
+    const hist = historico.map(h => ({ ...h, proyectado: undefined as number | undefined }));
+    // Punto de unión: el último histórico también tiene valor proyectado = totalActual
+    if (hist.length > 0) {
+      hist[hist.length - 1].proyectado = Math.round(totalActual);
+    }
+    const future = proyeccion.map((p, i) => ({
+      label: labelMesFuturo(i + 1, ultimaFecha),
+      real: undefined as number | undefined,
+      proyectado: p.proyectado,
+    }));
+    return [...hist, ...future];
+  }, [historico, proyeccion, totalActual, ultimaFecha]);
+
+  // ── Cuándo se alcanza el objetivo
+  const mesObjetivo = useMemo(() => {
+    if (objetivo <= totalActual) return 0;
+    const idx = proyeccion.findIndex(p => p.proyectado >= objetivo);
+    return idx === -1 ? null : idx + 1;
+  }, [proyeccion, objetivo, totalActual]);
+
+  const labelMesObj = mesObjetivo != null && mesObjetivo > 0
+    ? labelMesFuturo(mesObjetivo, ultimaFecha)
+    : null;
+
+  const finalProyectado = proyeccion[proyeccion.length - 1]?.proyectado ?? totalActual;
+  const gananciaProyectada = finalProyectado - totalActual;
+  const aportesTotales = aporte * horizonte;
+  const rentabilidadPura = gananciaProyectada - aportesTotales;
+
+  // ── Ticks del eje X (mostrar cada N puntos para no saturar)
+  const totalPuntos = chartData.length;
+  const cadaNPuntos = Math.max(1, Math.floor(totalPuntos / 8));
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, flex: 1, minHeight: 0, overflowY: 'auto' }}>
+
+      {/* ── Fila principal: controles + KPIs ──────────────────────────────── */}
+      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+
+        {/* Panel de controles */}
+        <div style={{
+          background: 'var(--card)',
+          border: '1px solid var(--border)',
+          borderRadius: 12,
+          padding: '18px 20px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 18,
+          minWidth: 240,
+          flex: '0 0 260px',
+        }}>
+          <p style={{ margin: 0, fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--primary)' }}>
+            Parámetros
+          </p>
+
+          <SliderRow
+            label="Aporte mensual"
+            value={aporte} min={0} max={5000} step={50}
+            fmt={v => fmtUSD(v)}
+            onChange={setAporte}
+          />
+          <SliderRow
+            label="Tasa anual estimada"
+            value={tasa} min={1} max={30} step={0.5}
+            fmt={v => `${v.toFixed(1)}%`}
+            onChange={setTasa}
+          />
+          <SliderRow
+            label="Horizonte"
+            value={horizonte} min={6} max={120} step={6}
+            fmt={v => v >= 12 ? `${(v / 12).toFixed(1)} años` : `${v} meses`}
+            onChange={setHorizonte}
+          />
+          <SliderRow
+            label="Objetivo de capital"
+            value={objetivo} min={10000} max={1000000} step={5000}
+            fmt={v => fmtUSD(v)}
+            onChange={setObjetivo}
+          />
+        </div>
+
+        {/* KPIs de proyección */}
+        <div style={{ display: 'flex', flex: 1, gap: 10, flexWrap: 'wrap', alignContent: 'flex-start' }}>
+
+          {/* Capital proyectado */}
+          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 18px', flex: '1 1 160px' }}>
+            <p style={{ margin: '0 0 4px', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)' }}>
+              Capital proyectado
+            </p>
+            <p style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.03em' }}>
+              {hideValues ? '***' : fmtUSD(finalProyectado)}
+            </p>
+            <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--muted)' }}>
+              en {horizonte >= 12 ? `${(horizonte / 12).toFixed(1)} años` : `${horizonte} meses`}
+            </p>
+          </div>
+
+          {/* Ganancia total */}
+          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 18px', flex: '1 1 160px' }}>
+            <p style={{ margin: '0 0 4px', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)' }}>
+              Ganancia total
+            </p>
+            <p style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--up)', letterSpacing: '-0.03em' }}>
+              {hideValues ? '***' : `+${fmtUSD(gananciaProyectada)}`}
+            </p>
+            <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--muted)' }}>
+              aportes: {hideValues ? '***' : fmtUSD(aportesTotales)} · interés: {hideValues ? '***' : fmtUSD(Math.max(0, rentabilidadPura))}
+            </p>
+          </div>
+
+          {/* Objetivo */}
+          <div style={{
+            background: 'var(--card)',
+            border: `1px solid ${labelMesObj ? 'var(--primary)' : 'var(--border)'}`,
+            borderRadius: 12, padding: '14px 18px', flex: '1 1 160px',
+          }}>
+            <p style={{ margin: '0 0 4px', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)' }}>
+              Objetivo {hideValues ? '' : fmtUSD(objetivo)}
+            </p>
+            {objetivo <= totalActual ? (
+              <p style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--up)' }}>
+                ¡Ya alcanzado!
+              </p>
+            ) : labelMesObj ? (
+              <>
+                <p style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--primary)', letterSpacing: '-0.03em' }}>
+                  {labelMesObj}
+                </p>
+                <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--muted)' }}>
+                  en {mesObjetivo! >= 12 ? `${(mesObjetivo! / 12).toFixed(1)} años` : `${mesObjetivo} meses`}
+                </p>
+              </>
+            ) : (
+              <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--muted)' }}>
+                Fuera del horizonte
+              </p>
+            )}
+          </div>
+
+          {/* Hoy */}
+          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 18px', flex: '1 1 160px' }}>
+            <p style={{ margin: '0 0 4px', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)' }}>
+              Cartera hoy
+            </p>
+            <p style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.03em' }}>
+              {hideValues ? '***' : fmtUSD(totalActual)}
+            </p>
+            <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--muted)' }}>
+              al {kpis.fechaStr}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Gráfico histórico + proyección ────────────────────────────────── */}
+      <div style={{
+        background: 'var(--card)',
+        border: '1px solid var(--border)',
+        borderRadius: 12,
+        padding: '18px 20px',
+        flex: 1,
+        minHeight: 280,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+      }}>
+        <p style={{ margin: 0, fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--primary)' }}>
+          Evolución histórica + Proyección
+        </p>
+
+        <ResponsiveContainer width="100%" height={260}>
+          <ComposedChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+            <XAxis
+              dataKey="label"
+              tick={{ fontSize: 10, fill: 'var(--muted)' }}
+              tickLine={false}
+              axisLine={false}
+              interval={cadaNPuntos - 1}
+            />
+            <YAxis
+              tick={{ fontSize: 10, fill: 'var(--muted)' }}
+              tickLine={false}
+              axisLine={false}
+              tickFormatter={v => hideValues ? '***' : `$${(v / 1000).toFixed(0)}k`}
+              width={52}
+            />
+            <Tooltip content={<CustomTooltip />} />
+            <Legend
+              iconType="circle" iconSize={8}
+              wrapperStyle={{ fontSize: 11, color: 'var(--muted)', paddingTop: 8 }}
+            />
+
+            {/* Línea histórica */}
+            <Line
+              type="monotone"
+              dataKey="real"
+              name="Cartera real"
+              stroke="var(--primary)"
+              strokeWidth={2}
+              dot={false}
+              connectNulls={false}
+            />
+
+            {/* Área proyectada */}
+            <Area
+              type="monotone"
+              dataKey="proyectado"
+              name="Proyección"
+              stroke="#00cc96"
+              strokeWidth={2}
+              strokeDasharray="5 4"
+              fill="#00cc9618"
+              dot={false}
+              connectNulls={false}
+            />
+
+            {/* Línea del objetivo */}
+            {objetivo > 0 && (
+              <ReferenceLine
+                y={objetivo}
+                stroke="var(--primary)"
+                strokeDasharray="4 3"
+                strokeOpacity={0.5}
+                label={{
+                  value: hideValues ? 'Objetivo' : `Objetivo ${fmtUSD(objetivo)}`,
+                  position: 'insideTopRight',
+                  fontSize: 10,
+                  fill: 'var(--primary)',
+                }}
+              />
+            )}
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* ── Objetivos de composición ───────────────────────────────────────── */}
+      <ObjetivosComposicion tenencias={tenenciasActuales} />
+
+    </div>
+  );
+}
