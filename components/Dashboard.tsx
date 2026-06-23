@@ -242,6 +242,7 @@ const [uploadOpen, setUploadOpen] = useState(false);
         padding: '8px 0 0',
         borderBottom: '1px solid var(--border)',
         marginBottom: 14,
+        flexWrap: 'wrap',
       }}>
         <nav style={{ display: 'flex', gap: 4 }}>
           {TABS.map((t) => (
@@ -267,6 +268,22 @@ const [uploadOpen, setUploadOpen] = useState(false);
             </button>
           ))}
         </nav>
+
+        {/* Filtros activos — visibles en todas las pestañas */}
+        {hayFiltro && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', paddingBottom: 4 }}>
+            <div style={{ width: 1, height: 20, background: 'var(--border)', flexShrink: 0 }} />
+            {filtroTipo   && <FiltroPill label={filtroTipo}   onClear={() => setFiltroTipo(null)} />}
+            {filtroRiesgo && <FiltroPill label={filtroRiesgo} onClear={() => setFiltroRiesgo(null)} />}
+            {filtroMoneda && <FiltroPill label={filtroMoneda} onClear={() => setFiltroMoneda(null)} />}
+            {filtroRenta  && <FiltroPill label={filtroRenta}  onClear={() => setFiltroRenta(null)} />}
+            {filtroGeo    && <FiltroPill label={filtroGeo}    onClear={() => setFiltroGeo(null)} />}
+            <button
+              onClick={clearFiltros}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--muted)', textDecoration: 'underline' }}
+            >Limpiar</button>
+          </div>
+        )}
       </div>
 
       {/* ── Tab: Resumen ────────────────────────────────────────────────────── */}
@@ -355,21 +372,6 @@ const [uploadOpen, setUploadOpen] = useState(false);
               ))}
             </div>
 
-            {/* Filtros activos */}
-            {hayFiltro && (
-              <>
-                <div style={{ width: 1, height: 20, background: 'var(--border)', flexShrink: 0 }} />
-                {filtroTipo   && <FiltroPill label={filtroTipo}   onClear={() => setFiltroTipo(null)} />}
-                {filtroRiesgo && <FiltroPill label={filtroRiesgo} onClear={() => setFiltroRiesgo(null)} />}
-                {filtroMoneda && <FiltroPill label={filtroMoneda} onClear={() => setFiltroMoneda(null)} />}
-                {filtroRenta  && <FiltroPill label={filtroRenta}  onClear={() => setFiltroRenta(null)} />}
-                {filtroGeo    && <FiltroPill label={filtroGeo}    onClear={() => setFiltroGeo(null)} />}
-                <button
-                  onClick={clearFiltros}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--muted)', textDecoration: 'underline' }}
-                >Limpiar</button>
-              </>
-            )}
           </div>
 
           {/* Treemap + Evolución por — mismo tamaño */}

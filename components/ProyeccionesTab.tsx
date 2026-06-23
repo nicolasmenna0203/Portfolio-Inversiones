@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import {
   ComposedChart, Line, Area, XAxis, YAxis, Tooltip,
-  CartesianGrid, ResponsiveContainer, ReferenceLine, Legend,
+  CartesianGrid, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import type { DashboardData, TenenciaActual } from '@/types';
 import { fmtUSD } from '@/lib/parser';
@@ -146,17 +146,23 @@ function resolverCategoria(t: TenenciaActual, dim: DimObj): string {
   return t.TIPO ?? 'Sin dato';
 }
 
+function filtrarParaDim(tenencias: TenenciaActual[], dim: DimObj): TenenciaActual[] {
+  if (dim === 'SECTOR_GEO') return tenencias.filter(t => t.RENTA === 'VAR' || t.RENTA === 'VARIABLE');
+  return tenencias;
+}
+
 function getCategorias(tenencias: TenenciaActual[], dim: DimObj): string[] {
   const set = new Set<string>();
-  for (const t of tenencias) set.add(resolverCategoria(t, dim));
+  for (const t of filtrarParaDim(tenencias, dim)) set.add(resolverCategoria(t, dim));
   return Array.from(set).sort();
 }
 
 function getPctReal(tenencias: TenenciaActual[], dim: DimObj): Record<string, number> {
-  const total = tenencias.reduce((s, t) => s + t.tenencia_usd, 0);
+  const src = filtrarParaDim(tenencias, dim);
+  const total = src.reduce((s, t) => s + t.tenencia_usd, 0);
   if (total === 0) return {};
   const map: Record<string, number> = {};
-  for (const t of tenencias) {
+  for (const t of src) {
     const cat = resolverCategoria(t, dim);
     map[cat] = (map[cat] ?? 0) + (t.tenencia_usd / total) * 100;
   }
@@ -254,17 +260,24 @@ function initObjetivosDim(tenencias: TenenciaActual[], dim: DimObj): ObjetivoDim
   return result;
 }
 
+const STORAGE_KEY = 'proyecciones_objetivos_v1';
+
 function ObjetivosComposicion({ tenencias }: { tenencias: TenenciaActual[] }) {
   const [dimActiva, setDimActiva] = useState<DimObj>('TIPO');
 
-  // Inicializar con la composición real actual de cada dimensión
-  const [objetivosPorDim, setObjetivosPorDim] = useState<Record<DimObj, ObjetivoDim>>(() => ({
-    TIPO:       initObjetivosDim(tenencias, 'TIPO'),
-    RIESGO:     initObjetivosDim(tenencias, 'RIESGO'),
-    MONEDA:     initObjetivosDim(tenencias, 'MONEDA'),
-    RENTA:      initObjetivosDim(tenencias, 'RENTA'),
-    SECTOR_GEO: initObjetivosDim(tenencias, 'SECTOR_GEO'),
-  }));
+  const [objetivosPorDim, setObjetivosPorDim] = useState<Record<DimObj, ObjetivoDim>>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) return JSON.parse(saved) as Record<DimObj, ObjetivoDim>;
+    } catch {}
+    return {
+      TIPO:       initObjetivosDim(tenencias, 'TIPO'),
+      RIESGO:     initObjetivosDim(tenencias, 'RIESGO'),
+      MONEDA:     initObjetivosDim(tenencias, 'MONEDA'),
+      RENTA:      initObjetivosDim(tenencias, 'RENTA'),
+      SECTOR_GEO: initObjetivosDim(tenencias, 'SECTOR_GEO'),
+    };
+  });
 
   const categorias = useMemo(() => getCategorias(tenencias, dimActiva), [tenencias, dimActiva]);
   const pctReal    = useMemo(() => getPctReal(tenencias, dimActiva),    [tenencias, dimActiva]);
@@ -273,10 +286,11 @@ function ObjetivosComposicion({ tenencias }: { tenencias: TenenciaActual[] }) {
   const resta      = Math.max(0, 100 - suma);
 
   function setObjetivo(cat: string, val: number) {
-    setObjetivosPorDim(prev => ({
-      ...prev,
-      [dimActiva]: { ...prev[dimActiva], [cat]: val },
-    }));
+    setObjetivosPorDim(prev => {
+      const next = { ...prev, [dimActiva]: { ...prev[dimActiva], [cat]: val } };
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch {}
+      return next;
+    });
   }
 
   return (
@@ -382,11 +396,29 @@ export default function ProyeccionesTab({ data, hideValues }: Props) {
   }, [tenenciasPorMes]);
   const ultimaFecha = resumenSeries[resumenSeries.length - 1]?.fecha ?? '';
 
-  // ── Controles
-  const [aporte,    setAporte]    = useState(500);
-  const [tasa,      setTasa]      = useState(10);
-  const [horizonte, setHorizonte] = useState(60);   // meses
-  const [objetivo,  setObjetivo]  = useState(Math.round(totalActual * 2 / 1000) * 1000 || 100000);
+  // ── Controles (persistidos en localStorage)
+  const PARAMS_KEY = 'proyecciones_params_v1';
+  function loadParams() {
+    try {
+      const s = localStorage.getItem(PARAMS_KEY);
+      if (s) return JSON.parse(s) as { aporte: number; tasa: number; horizonte: number; objetivo: number };
+    } catch {}
+    return null;
+  }
+  function saveParams(p: { aporte: number; tasa: number; horizonte: number; objetivo: number }) {
+    try { localStorage.setItem(PARAMS_KEY, JSON.stringify(p)); } catch {}
+  }
+
+  const saved = loadParams();
+  const [aporte,    setAporte]    = useState(saved?.aporte    ?? 500);
+  const [tasa,      setTasa]      = useState(saved?.tasa      ?? 10);
+  const [horizonte, setHorizonte] = useState(saved?.horizonte ?? 60);
+  const [objetivo,  setObjetivo]  = useState(saved?.objetivo  ?? (Math.round(totalActual * 2 / 1000) * 1000 || 100000));
+
+  function updateAporte(v: number)    { setAporte(v);    saveParams({ aporte: v,    tasa, horizonte, objetivo }); }
+  function updateTasa(v: number)      { setTasa(v);      saveParams({ aporte, tasa: v,      horizonte, objetivo }); }
+  function updateHorizonte(v: number) { setHorizonte(v); saveParams({ aporte, tasa, horizonte: v, objetivo }); }
+  function updateObjetivo(v: number)  { setObjetivo(v);  saveParams({ aporte, tasa, horizonte, objetivo: v }); }
 
   // ── Datos históricos normalizados para el gráfico
   const historico = useMemo(() =>
@@ -441,7 +473,7 @@ export default function ProyeccionesTab({ data, hideValues }: Props) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, flex: 1, minHeight: 0, overflowY: 'auto' }}>
 
       {/* ── Fila principal: controles + KPIs ──────────────────────────────── */}
-      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'stretch' }}>
 
         {/* Panel de controles */}
         <div style={{
@@ -458,38 +490,37 @@ export default function ProyeccionesTab({ data, hideValues }: Props) {
           <p style={{ margin: 0, fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--primary)' }}>
             Parámetros
           </p>
-
           <SliderRow
             label="Aporte mensual"
             value={aporte} min={0} max={5000} step={50}
             fmt={v => fmtUSD(v)}
-            onChange={setAporte}
+            onChange={updateAporte}
           />
           <SliderRow
             label="Tasa anual estimada"
             value={tasa} min={1} max={30} step={0.5}
             fmt={v => `${v.toFixed(1)}%`}
-            onChange={setTasa}
+            onChange={updateTasa}
           />
           <SliderRow
             label="Horizonte"
             value={horizonte} min={6} max={120} step={6}
             fmt={v => v >= 12 ? `${(v / 12).toFixed(1)} años` : `${v} meses`}
-            onChange={setHorizonte}
+            onChange={updateHorizonte}
           />
           <SliderRow
             label="Objetivo de capital"
             value={objetivo} min={10000} max={1000000} step={5000}
             fmt={v => fmtUSD(v)}
-            onChange={setObjetivo}
+            onChange={updateObjetivo}
           />
         </div>
 
-        {/* KPIs de proyección */}
-        <div style={{ display: 'flex', flex: 1, gap: 10, flexWrap: 'wrap', alignContent: 'flex-start' }}>
+        {/* KPIs de proyección — grilla 2×2 */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, flex: 1 }}>
 
           {/* Capital proyectado */}
-          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 18px', flex: '1 1 160px' }}>
+          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 18px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
             <p style={{ margin: '0 0 4px', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)' }}>
               Capital proyectado
             </p>
@@ -502,7 +533,7 @@ export default function ProyeccionesTab({ data, hideValues }: Props) {
           </div>
 
           {/* Ganancia total */}
-          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 18px', flex: '1 1 160px' }}>
+          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 18px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
             <p style={{ margin: '0 0 4px', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)' }}>
               Ganancia total
             </p>
@@ -518,15 +549,14 @@ export default function ProyeccionesTab({ data, hideValues }: Props) {
           <div style={{
             background: 'var(--card)',
             border: `1px solid ${labelMesObj ? 'var(--primary)' : 'var(--border)'}`,
-            borderRadius: 12, padding: '14px 18px', flex: '1 1 160px',
+            borderRadius: 12, padding: '14px 18px',
+            display: 'flex', flexDirection: 'column', justifyContent: 'center',
           }}>
             <p style={{ margin: '0 0 4px', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)' }}>
               Objetivo {hideValues ? '' : fmtUSD(objetivo)}
             </p>
             {objetivo <= totalActual ? (
-              <p style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--up)' }}>
-                ¡Ya alcanzado!
-              </p>
+              <p style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--up)' }}>¡Ya alcanzado!</p>
             ) : labelMesObj ? (
               <>
                 <p style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--primary)', letterSpacing: '-0.03em' }}>
@@ -537,14 +567,12 @@ export default function ProyeccionesTab({ data, hideValues }: Props) {
                 </p>
               </>
             ) : (
-              <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--muted)' }}>
-                Fuera del horizonte
-              </p>
+              <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--muted)' }}>Fuera del horizonte</p>
             )}
           </div>
 
           {/* Hoy */}
-          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 18px', flex: '1 1 160px' }}>
+          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 18px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
             <p style={{ margin: '0 0 4px', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)' }}>
               Cartera hoy
             </p>
@@ -563,19 +591,20 @@ export default function ProyeccionesTab({ data, hideValues }: Props) {
         background: 'var(--card)',
         border: '1px solid var(--border)',
         borderRadius: 12,
-        padding: '18px 20px',
-        flex: 1,
-        minHeight: 280,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 12,
+        padding: '18px 20px 10px',
       }}>
-        <p style={{ margin: 0, fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--primary)' }}>
-          Evolución histórica + Proyección
-        </p>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+          <p style={{ margin: 0, fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--primary)' }}>
+            Evolución histórica + Proyección
+          </p>
+          <div style={{ display: 'flex', gap: 14, fontSize: 11, color: 'var(--muted)' }}>
+            <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: 'var(--primary)', marginRight: 5 }} />Cartera real</span>
+            <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#00cc96', marginRight: 5 }} />Proyección</span>
+          </div>
+        </div>
 
         <ResponsiveContainer width="100%" height={260}>
-          <ComposedChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+          <ComposedChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 4 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
             <XAxis
               dataKey="label"
@@ -592,10 +621,6 @@ export default function ProyeccionesTab({ data, hideValues }: Props) {
               width={52}
             />
             <Tooltip content={<CustomTooltip />} />
-            <Legend
-              iconType="circle" iconSize={8}
-              wrapperStyle={{ fontSize: 11, color: 'var(--muted)', paddingTop: 8 }}
-            />
 
             {/* Línea histórica */}
             <Line
