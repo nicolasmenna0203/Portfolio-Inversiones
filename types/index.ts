@@ -4,6 +4,7 @@ export interface ResumenRow {
   aportes: number;
   acumulado: number;
   total_cartera: number;
+  total_cartera_ars: number;
   rendimiento: number;
 }
 
@@ -42,6 +43,7 @@ export interface TenenciaActual extends TenenciaRow {
 
 export interface KPIData {
   totalCartera: number;
+  totalCarteraArs: number;
   aporteAcumulados: number;
   rendimientoNeto: number;
   rendimientoPct: number;
@@ -54,6 +56,72 @@ export interface DashboardData {
   kpis: KPIData;
   resumenSeries: ResumenRow[];
   tenenciasPorMes: Record<string, TenenciaActual[]>;
-  mesesDisponibles: string[];           // ["Mar-2024", ...] ordered
-  totalPorMes: Record<string, number>;  // "YYYY-MM" → total_cartera
+  mesesDisponibles: string[];              // ["Mar-2024", ...] ordered
+  totalPorMes: Record<string, number>;     // "YYYY-MM" → total_cartera (USD)
+  totalPorMesArs: Record<string, number>;  // "YYYY-MM" → total_cartera_ars
+}
+
+// ── Benchmarks ────────────────────────────────────────────────────────────────
+
+export type BenchmarkId = 'sp500' | 'inflacion' | 'mep' | 'btc' | 'oro';
+
+export interface BenchmarkPoint {
+  mesKey: string;   // "YYYY-MM"
+  fecha: string;    // "Mar-2025"
+  valor: number;    // índice base 100
+}
+
+export interface BenchmarkSeries {
+  id: BenchmarkId;
+  label: string;
+  puntos: BenchmarkPoint[];
+  error?: string;   // presente si esta fuente puntual falló
+}
+
+export interface BenchmarksResponse {
+  baseMesKey: string;
+  series: BenchmarkSeries[];
+  generatedAt: number;
+}
+
+// ── FX (dólar MEP absoluto) ─────────────────────────────────────────────────
+
+export interface FxResponse {
+  puntos: { mesKey: string; valorArs: number }[];
+  generatedAt: number;
+  error?: string;
+}
+
+// ── Calendario: Noticias ─────────────────────────────────────────────────────
+
+export interface NoticiaItem {
+  titulo: string;
+  link: string;
+  fuente: string;      // "Yahoo Finance" | "Ámbito"
+  fecha: number;        // timestamp ms
+  ticker?: string;       // ausente en noticias generales (Ámbito)
+}
+
+export interface NoticiasResponse {
+  noticias: NoticiaItem[];
+  errores: string[];
+  generatedAt: number;
+}
+
+// ── Calendario: Eventos (earnings/dividendos) ────────────────────────────────
+
+export type EventoTipo = 'dividendo' | 'earnings';
+
+export interface EventoCalendario {
+  ticker: string;
+  tipo: EventoTipo;
+  fecha: string;        // "YYYY-MM-DD"
+  detalle?: string;      // ej. "EPS est. 1.52" o "0.24 USD/acción"
+}
+
+export interface CalendarioResponse {
+  eventos: EventoCalendario[];
+  errores: string[];
+  finnhubConfigured: boolean;
+  generatedAt: number;
 }

@@ -15,27 +15,54 @@ import {
   Legend,
 } from 'recharts';
 import type { ResumenRow, TenenciaActual } from '@/types';
-import { fmtUSD } from '@/lib/parser';
+import { fmtUSD, fmtARS, type Moneda } from '@/lib/parser';
 
 interface Props {
   data: ResumenRow[];
   tenenciasPorMes: Record<string, TenenciaActual[]>;
   hideValues?: boolean;
+  moneda?: Moneda;
+  mepPorMes?: Map<string, number>;
 }
 
-function buildData(data: ResumenRow[], tenenciasPorMes: Record<string, TenenciaActual[]>) {
+function buildData(
+  data: ResumenRow[],
+  tenenciasPorMes: Record<string, TenenciaActual[]>,
+  moneda: Moneda,
+  mepPorMes: Map<string, number>,
+) {
   return data.map((row, i) => {
     const d = new Date(row.fechaTs);
     const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
-    const prevCartera = i > 0 ? data[i - 1].total_cartera : null;
-    const ganancia = prevCartera !== null ? (row.total_cartera - prevCartera) - row.aportes : null;
-    return { ...row, activos: tenenciasPorMes[key]?.length ?? null, ganancia };
+
+    // total_cartera ya tiene contraparte ARS directa (sin MEP). acumulado/aportes
+    // vienen de movimientos (solo USD) y necesitan el MEP del mes de esta fila.
+    const mep = mepPorMes.get(key);
+    const totalCartera = moneda === 'ARS' ? row.total_cartera_ars : row.total_cartera;
+    const acumulado = moneda === 'USD' ? row.acumulado : mep != null ? row.acumulado * mep : undefined;
+    const aportes = moneda === 'USD' ? row.aportes : mep != null ? row.aportes * mep : undefined;
+
+    const prevRow = i > 0 ? data[i - 1] : null;
+    const prevTotalCartera = prevRow != null ? (moneda === 'ARS' ? prevRow.total_cartera_ars : prevRow.total_cartera) : null;
+    const ganancia = prevTotalCartera !== null && aportes !== undefined
+      ? (totalCartera - prevTotalCartera) - aportes
+      : null;
+
+    return {
+      ...row,
+      total_cartera: totalCartera,
+      acumulado,
+      aportes,
+      activos: tenenciasPorMes[key]?.length ?? null,
+      ganancia,
+    };
   });
 }
 
-function TooltipContent({ active, payload, label, hideValues }: any) {
+function TooltipContent({ active, payload, label, hideValues, moneda }: any) {
   if (!active || !payload?.length) return null;
 
+  const fmt = moneda === 'ARS' ? fmtARS : fmtUSD;
   const ORDER = ['total_cartera', 'acumulado', 'ganancia', 'activos'];
   const sorted = [...payload].sort(
     (a, b) => ORDER.indexOf(a.dataKey) - ORDER.indexOf(b.dataKey)
@@ -61,9 +88,9 @@ function TooltipContent({ active, payload, label, hideValues }: any) {
         } else if (p.dataKey === 'ganancia') {
           const isPos = p.value >= 0;
           color = isPos ? 'var(--up)' : 'var(--down)';
-          display = hideValues ? '···' : `${isPos ? '+' : ''}${fmtUSD(p.value)}`;
+          display = hideValues ? '···' : `${isPos ? '+' : ''}${fmt(p.value)}`;
         } else {
-          display = hideValues ? '···' : fmtUSD(p.value);
+          display = hideValues ? '···' : fmt(p.value);
         }
         return (
           <p key={p.dataKey} style={{ color, marginBottom: 3, display: 'flex', justifyContent: 'space-between', gap: 12 }}>
@@ -76,8 +103,8 @@ function TooltipContent({ active, payload, label, hideValues }: any) {
   );
 }
 
-export default function EvolucionChart({ data, tenenciasPorMes, hideValues }: Props) {
-  const chartData = buildData(data, tenenciasPorMes);
+export default function EvolucionChart({ data, tenenciasPorMes, hideValues, moneda = 'USD', mepPorMes }: Props) {
+  const chartData = buildData(data, tenenciasPorMes, moneda, mepPorMes ?? new Map());
   const [isMobile, setIsMobile] = useState(false);
 
 
@@ -133,7 +160,7 @@ export default function EvolucionChart({ data, tenenciasPorMes, hideValues }: Pr
           />
           <YAxis
             yAxisId="usd"
-            tickFormatter={(v) => hideValues ? '···' : `$${(v / 1000).toFixed(0)}k`}
+            tickFormatter={(v) => hideValues ? '···' : `${moneda === 'ARS' ? 'AR$' : '$'}${(v / 1000).toFixed(0)}k`}
             tick={{ fill: 'var(--muted)', fontSize: isMobile ? 9 : 11 }}
             tickLine={false}
             axisLine={false}
@@ -159,7 +186,7 @@ export default function EvolucionChart({ data, tenenciasPorMes, hideValues }: Pr
             width={isMobile ? 22 : 32}
             allowDecimals={false}
           />
-          <Tooltip content={<TooltipContent hideValues={hideValues} />} />
+          <Tooltip content={<TooltipContent hideValues={hideValues} moneda={moneda} />} />
           <Legend
             iconType="plainline"
             iconSize={16}

@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import type { DashboardData, TenenciaActual } from '@/types';
-import { fmtUSD, fmtPct } from '@/lib/parser';
+import { fmtUSD, fmtARS, fmtPct, toMesKey, type Moneda } from '@/lib/parser';
+import { useFx } from '@/lib/useFx';
 import { RIESGO_LABEL, RENTA_LABEL, GEO_LABEL, MONEDA_LABEL } from '@/lib/constants';
 import KPICard from './KPICard';
 import EvolucionChart from './EvolucionChart';
@@ -13,7 +14,10 @@ import UploadTenencias from './UploadTenencias';
 import InformeTab from './InformeTab';
 import ChatBot from './ChatBot';
 import ProyeccionesTab from './ProyeccionesTab';
-type Tab = 'resumen' | 'tenencias' | 'informe' | 'proyecciones';
+import BenchmarksTab from './BenchmarksTab';
+import CalendarioTab from './CalendarioTab';
+import { FlagUS, FlagAR } from './FlagIcons';
+type Tab = 'resumen' | 'tenencias' | 'informe' | 'proyecciones' | 'benchmarks' | 'calendario';
 
 const DIMS_TENENCIAS = [
   { key: 'TIPO',       label: 'Tipo de Activo'    },
@@ -29,6 +33,8 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'tenencias',    label: 'Tenencias'    },
   { id: 'informe',      label: 'Informe'      },
   { id: 'proyecciones', label: 'Proyecciones' },
+  { id: 'benchmarks',   label: 'Comparación' },
+  { id: 'calendario',   label: 'Calendario'  },
 ];
 
 // ── Filtro activo pill ────────────────────────────────────────────────────────
@@ -69,6 +75,45 @@ const [uploadOpen, setUploadOpen] = useState(false);
   const [theme, setTheme]           = useState<'dark' | 'light'>('dark');
   const [hideValues, setHideValues] = useState(false);
   const [dimTenencias, setDimTenencias] = useState<DimTenencias>('TIPO');
+  const [moneda, setMoneda]         = useState<Moneda>('USD');
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('moneda_v1');
+      if (saved === 'USD' || saved === 'ARS') setMoneda(saved);
+    } catch {}
+  }, []);
+
+  function toggleMoneda() {
+    setMoneda((prev) => {
+      const next = prev === 'USD' ? 'ARS' : 'USD';
+      try { localStorage.setItem('moneda_v1', next); } catch {}
+      return next;
+    });
+  }
+
+  const primerMesKey = resumenSeries.length > 0 ? toMesKey(resumenSeries[0].fechaTs) : null;
+  const { mepPorMes } = useFx(primerMesKey);
+
+  // KPIs derivados de movimientos (solo tienen monto en USD en el Sheet) recalculados
+  // en ARS convirtiendo cada aporte mensual con el MEP histórico de su propio mes.
+  // Si falta el dato de MEP de algún mes del rango, el resultado queda en null (no NaN).
+  const kpisArs = useMemo(() => {
+    if (moneda === 'USD') return null;
+    let acumuladoArs = 0;
+    let faltaDato = false;
+    for (const r of resumenSeries) {
+      const mep = mepPorMes.get(toMesKey(r.fechaTs));
+      if (mep == null) { faltaDato = true; break; }
+      acumuladoArs += r.aportes * mep;
+    }
+    if (faltaDato) return null;
+    const rendimientoNetoArs = kpis.totalCarteraArs - acumuladoArs;
+    const rendimientoPctArs = acumuladoArs > 0 ? (rendimientoNetoArs / acumuladoArs) * 100 : 0;
+    const penultimo = resumenSeries[resumenSeries.length - 2];
+    const deltaCarteraArs = penultimo != null ? kpis.totalCarteraArs - penultimo.total_cartera_ars : 0;
+    return { rendimientoNetoArs, rendimientoPctArs, deltaCarteraArs };
+  }, [moneda, resumenSeries, mepPorMes, kpis.totalCarteraArs]);
 
   // Filtros cross-chart
   const [filtroTipo,   setFiltroTipo]   = useState<string | null>(null);
@@ -147,6 +192,14 @@ const [uploadOpen, setUploadOpen] = useState(false);
             Al{' '}
             <span style={{ color: 'var(--text-sec)', fontWeight: 500 }}>{kpis.fechaStr}</span>
           </p>
+          <button
+            className="theme-toggle"
+            onClick={toggleMoneda}
+            title={moneda === 'USD' ? 'Ver en pesos (ARS)' : 'Ver en dólares (USD)'}
+          >
+            {moneda === 'USD' ? <FlagUS /> : <FlagAR />}
+            <span className="btn-label">{moneda}</span>
+          </button>
           <button
             className="theme-toggle"
             onClick={() => setHideValues(v => !v)}
@@ -292,20 +345,36 @@ const [uploadOpen, setUploadOpen] = useState(false);
           <div className="kpi-grid">
             <KPICard
               label="Total Cartera"
-              value={hideValues ? '***' : fmtUSD(kpis.totalCartera)}
-              sub={hideValues ? '***' : `${kpis.deltaCartera >= 0 ? '▲' : '▼'} ${fmtUSD(Math.abs(kpis.deltaCartera))} vs mes anterior`}
+              value={hideValues ? '***' : moneda === 'USD' ? fmtUSD(kpis.totalCartera) : fmtARS(kpis.totalCarteraArs)}
+              sub={
+                hideValues ? '***' :
+                moneda === 'USD'
+                  ? `${kpis.deltaCartera >= 0 ? '▲' : '▼'} ${fmtUSD(Math.abs(kpis.deltaCartera))} vs mes anterior`
+                  : kpisArs
+                    ? `${kpisArs.deltaCarteraArs >= 0 ? '▲' : '▼'} ${fmtARS(Math.abs(kpisArs.deltaCarteraArs))} vs mes anterior`
+                    : 's/d vs mes anterior'
+              }
               subColor={deltaColor}
               accentColor="var(--primary)"
             />
             <KPICard
               label="Rendimiento Neto"
-              value={hideValues ? '***' : fmtUSD(kpis.rendimientoNeto)}
-              sub={hideValues ? '***' : `${fmtPct(kpis.rendimientoPct)} sobre aportes`}
+              value={
+                hideValues ? '***' :
+                moneda === 'USD' ? fmtUSD(kpis.rendimientoNeto) :
+                kpisArs ? fmtARS(kpisArs.rendimientoNetoArs) : 's/d'
+              }
+              sub={
+                hideValues ? '***' :
+                moneda === 'USD'
+                  ? `${fmtPct(kpis.rendimientoPct)} sobre aportes`
+                  : kpisArs ? `${fmtPct(kpisArs.rendimientoPctArs)} sobre aportes` : 'sin dato de MEP'
+              }
               subColor={rendColor}
               accentColor={rendColor}
             />
             <KPICard
-              label="TIR Anual"
+              label={moneda === 'ARS' ? 'TIR Anual (USD)' : 'TIR Anual'}
               value={kpis.tirAnual != null ? `${kpis.tirAnual.toFixed(1)}%` : 'N/D'}
               sub="sobre flujos históricos"
               subColor={tirColor}
@@ -314,7 +383,7 @@ const [uploadOpen, setUploadOpen] = useState(false);
           </div>
 
           <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-            <EvolucionChart data={resumenSeries} tenenciasPorMes={tenenciasPorMes} hideValues={hideValues} />
+            <EvolucionChart data={resumenSeries} tenenciasPorMes={tenenciasPorMes} hideValues={hideValues} moneda={moneda} mepPorMes={mepPorMes} />
           </div>
         </section>
       )}
@@ -415,6 +484,20 @@ const [uploadOpen, setUploadOpen] = useState(false);
       {tab === 'proyecciones' && (
         <section style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           <ProyeccionesTab data={data} hideValues={hideValues} />
+        </section>
+      )}
+
+      {/* ── Tab: Comparación (Benchmarks) ───────────────────────────────────── */}
+      {tab === 'benchmarks' && (
+        <section style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+          <BenchmarksTab data={data} />
+        </section>
+      )}
+
+      {/* ── Tab: Calendario (Noticias + Eventos) ─────────────────────────────── */}
+      {tab === 'calendario' && (
+        <section style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+          <CalendarioTab data={data} />
         </section>
       )}
 

@@ -89,3 +89,26 @@ export function fmtUSD(n: number): string {
 export function fmtPct(n: number, decimals = 1): string {
   return `${n >= 0 ? '+' : ''}${n.toFixed(decimals)}%`;
 }
+
+export function fmtARS(n: number): string {
+  return new Intl.NumberFormat('es-AR', {
+    style: 'currency',
+    currency: 'ARS',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(n);
+}
+
+export type Moneda = 'USD' | 'ARS';
+
+/** Convierte y formatea un monto que solo existe en USD (ej. aportes), usando el MEP del mes. */
+export function fmtMonto(usd: number, moneda: Moneda, mepValor?: number | null): string {
+  if (moneda === 'USD') return fmtUSD(usd);
+  if (mepValor == null) return 's/d';
+  return fmtARS(usd * mepValor);
+}
+
+/** Elige entre un valor que ya tiene ambas monedas disponibles (ej. tenencias, total_cartera). */
+export function valorSegunMoneda(usd: number, ars: number, moneda: Moneda): number {
+  return moneda === 'ARS' ? ars : usd;
+}

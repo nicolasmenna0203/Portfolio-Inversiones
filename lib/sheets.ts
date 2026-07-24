@@ -144,6 +144,12 @@ export async function fetchDashboardData(): Promise<DashboardData> {
     totalPorMes[mes] = items.reduce((sum, t) => sum + t.tenencia_usd, 0);
   }
 
+  // total_cartera_ars por mes: suma de tenencias ARS (dato congelado del Sheet, sin conversión)
+  const totalPorMesArs: Record<string, number> = {};
+  for (const [mes, items] of Object.entries(tenenciasPorMes)) {
+    totalPorMesArs[mes] = items.reduce((sum, t) => sum + t.tenencia_ars, 0);
+  }
+
   // ── Resumen series: acumulado y aportes desde movimientos ─────────────────
   // Todos los meses con tenencias, ordenados
   const mesesOrdenados = Object.keys(totalPorMes).sort();
@@ -165,12 +171,14 @@ export async function fetchDashboardData(): Promise<DashboardData> {
       .reduce((sum, mv) => sum + mv.monto_neto, 0);
 
     const total_cartera = totalPorMes[mes] ?? 0;
+    const total_cartera_ars = totalPorMesArs[mes] ?? 0;
     return {
       fecha: formatMesLabel(fechaTs),
       fechaTs,
       aportes: aportesMes,
       acumulado: acumuladoAcum,
       total_cartera,
+      total_cartera_ars,
       rendimiento: total_cartera - acumuladoAcum,
     };
   });
@@ -199,6 +207,7 @@ export async function fetchDashboardData(): Promise<DashboardData> {
 
   const kpis: KPIData = {
     totalCartera: ultimo.total_cartera,
+    totalCarteraArs: ultimo.total_cartera_ars,
     aporteAcumulados: ultimo.acumulado,
     rendimientoNeto: ultimo.rendimiento,
     rendimientoPct:
@@ -216,5 +225,6 @@ export async function fetchDashboardData(): Promise<DashboardData> {
     tenenciasPorMes,
     mesesDisponibles,
     totalPorMes,
+    totalPorMesArs,
   };
 }
