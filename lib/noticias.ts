@@ -7,7 +7,7 @@ const AMBITO_FEEDS = [
   'https://www.ambito.com/rss/pages/negocios.xml',
 ];
 
-const MAX_ITEMS = 40;
+const MAX_ITEMS_AMBITO = 20;
 
 async function fetchNoticiasTicker(ticker: string): Promise<NoticiaItem[]> {
   const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(ticker)}&newsCount=5`;
@@ -49,23 +49,28 @@ async function fetchNoticiasAmbito(): Promise<NoticiaItem[]> {
 }
 
 export async function fetchNoticias(tickers: string[]): Promise<NoticiasResponse> {
-  const settled = await Promise.allSettled([
-    ...tickers.map((t) => fetchNoticiasTicker(t)),
-    fetchNoticiasAmbito(),
-  ]);
+  const settledTickers = await Promise.allSettled(tickers.map((t) => fetchNoticiasTicker(t)));
+  const settledAmbito = await fetchNoticiasAmbito().catch(() => [] as NoticiaItem[]);
 
-  const noticias: NoticiaItem[] = [];
+  // Se mantienen separadas antes de unir: Ámbito publica con mucha más frecuencia
+  // que las noticias específicas de un ticker, así que un solo corte por fecha
+  // terminaría tapando las noticias de la cartera. Se cachea todo lo de tickers
+  // (sin recorte) y se limita solo el volumen de Ámbito.
+  const noticiasTickers: NoticiaItem[] = [];
   const errores: string[] = [];
 
-  for (const r of settled) {
+  for (const r of settledTickers) {
     if (r.status === 'fulfilled') {
-      noticias.push(...r.value);
+      noticiasTickers.push(...r.value);
     } else {
       errores.push(r.reason instanceof Error ? r.reason.message : String(r.reason));
     }
   }
 
-  noticias.sort((a, b) => b.fecha - a.fecha);
+  noticiasTickers.sort((a, b) => b.fecha - a.fecha);
+  const noticiasAmbito = [...settledAmbito].sort((a, b) => b.fecha - a.fecha).slice(0, MAX_ITEMS_AMBITO);
 
-  return { noticias: noticias.slice(0, MAX_ITEMS), errores, generatedAt: Date.now() };
+  const noticias = [...noticiasTickers, ...noticiasAmbito].sort((a, b) => b.fecha - a.fecha);
+
+  return { noticias, errores, generatedAt: Date.now() };
 }

@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import type { DashboardData, EventoTipo } from '@/types';
 import { useCalendario } from '@/lib/useCalendario';
+import { TIPOS_VALIDOS, TICKERS_INCLUIR, TICKERS_EXCLUIR } from '@/lib/tickersElegibles';
 
 interface Props {
   data: DashboardData;
@@ -13,47 +14,29 @@ const TIPO_EVENTO_META: Record<EventoTipo, { label: string; color: string }> = {
   earnings:  { label: 'Balance',   color: '#ef553b' },
 };
 
-function fmtFechaRelativa(ts: number): string {
-  const diffMs = Date.now() - ts;
-  const diffH = diffMs / 3_600_000;
-  if (diffH < 1) return 'hace unos minutos';
-  if (diffH < 24) return `hace ${Math.round(diffH)}h`;
-  const diffD = Math.round(diffH / 24);
-  if (diffD < 7) return `hace ${diffD}d`;
-  return new Date(ts).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
-}
-
 function fmtFechaEvento(fecha: string): string {
   const d = new Date(fecha + 'T00:00:00Z');
   return d.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
 }
 
-function Pill({ label, active, color, onClick, disabled }: {
-  label: string; active: boolean; color?: string; onClick: () => void; disabled?: boolean;
+function Pill({ label, active, color, onClick }: {
+  label: string; active: boolean; color?: string; onClick: () => void;
 }) {
   const c = color ?? 'var(--primary)';
   return (
     <button
       onClick={onClick}
-      disabled={disabled}
       style={{
         padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        border: '1px solid',
+        cursor: 'pointer', border: '1px solid',
         borderColor: active ? c : 'var(--border)',
         background: active ? `${c}22` : 'transparent',
         color: active ? c : 'var(--muted)',
-        opacity: disabled ? 0.5 : 1,
         transition: 'all 0.12s',
       }}
     >{label}</button>
   );
 }
-
-// Solo acciones y ETFs tienen un símbolo de mercado real cotizable en Yahoo/Finnhub.
-// FCIs (ej. fondos de Cocos Capital), bonos, cripto y activos ARG quedan afuera —
-// pedirles noticias a Yahoo con un ticker inválido devuelve resultados basura (fuzzy match).
-const TIPOS_VALIDOS = new Set(['ACCIONES', 'ACCION', 'ETF']);
 
 function Card({ children }: { children: React.ReactNode }) {
   return (
@@ -75,29 +58,27 @@ export default function CalendarioTab({ data }: Props) {
     const items = tenenciasPorMes[ultimoMes] ?? [];
     const set = new Set(
       items
-        .filter((t) => TIPOS_VALIDOS.has(t.TIPO?.toUpperCase()) && t.SECTOR_GEO !== 'ARG')
+        .filter((t) => {
+          const ticker = t.ticker.toUpperCase();
+          if (TICKERS_EXCLUIR.has(ticker)) return false;
+          if (TICKERS_INCLUIR.has(ticker)) return true;
+          return TIPOS_VALIDOS.has(t.TIPO?.toUpperCase()) && t.SECTOR_GEO !== 'ARG';
+        })
         .map((t) => t.ticker.toUpperCase()),
     );
     return [...set].sort();
   }, [tenenciasPorMes]);
 
-  const { noticias, eventos, finnhubConfigured, loadingNoticias, loadingEventos, errorNoticias, errorEventos } =
-    useCalendario(tickersActivos);
+  const { eventos, finnhubConfigured, loadingEventos, errorEventos } = useCalendario(tickersActivos);
 
   const [filtroTicker, setFiltroTicker] = useState<string | null>(null);
   const [filtroTipoEvento, setFiltroTipoEvento] = useState<EventoTipo | null>(null);
 
   const tickersDisponibles = useMemo(() => {
     const set = new Set<string>();
-    for (const n of noticias) if (n.ticker) set.add(n.ticker);
     for (const e of eventos) set.add(e.ticker);
     return [...set].sort();
-  }, [noticias, eventos]);
-
-  const noticiasFiltradas = useMemo(
-    () => noticias.filter((n) => !filtroTicker || n.ticker === filtroTicker),
-    [noticias, filtroTicker],
-  );
+  }, [eventos]);
 
   const eventosFiltrados = useMemo(
     () => eventos.filter((e) =>
@@ -163,45 +144,6 @@ export default function CalendarioTab({ data }: Props) {
         )}
         {errorEventos && (
           <p style={{ margin: 0, fontSize: 11, color: '#ef553b' }}>Algunos eventos no pudieron cargarse: {errorEventos}</p>
-        )}
-      </Card>
-
-      {/* ── Noticias ──────────────────────────────────────────────────────── */}
-      <Card>
-        <p style={{ margin: 0, fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--primary)' }}>
-          Noticias
-        </p>
-
-        {loadingNoticias ? (
-          <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)' }}>Cargando noticias…</p>
-        ) : noticiasFiltradas.length === 0 ? (
-          <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)' }}>Sin noticias disponibles.</p>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {noticiasFiltradas.map((n, i) => (
-              <a
-                key={i}
-                href={n.link}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: 'flex', flexDirection: 'column', gap: 2, textDecoration: 'none',
-                  padding: '6px 0', borderBottom: i < noticiasFiltradas.length - 1 ? '1px solid var(--border-subtle)' : 'none',
-                }}
-              >
-                <span style={{ fontSize: 12.5, color: 'var(--text)', fontWeight: 500 }}>{n.titulo}</span>
-                <span style={{ fontSize: 10.5, color: 'var(--muted)', display: 'flex', gap: 8, alignItems: 'center' }}>
-                  {n.ticker && (
-                    <span style={{ fontWeight: 700, color: 'var(--primary)' }}>{n.ticker}</span>
-                  )}
-                  {n.fuente} · {fmtFechaRelativa(n.fecha)}
-                </span>
-              </a>
-            ))}
-          </div>
-        )}
-        {errorNoticias && (
-          <p style={{ margin: 0, fontSize: 11, color: '#ef553b' }}>Algunas noticias no pudieron cargarse: {errorNoticias}</p>
         )}
       </Card>
     </div>

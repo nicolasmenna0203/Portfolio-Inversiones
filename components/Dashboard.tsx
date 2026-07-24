@@ -15,9 +15,10 @@ import InformeTab from './InformeTab';
 import ChatBot from './ChatBot';
 import ProyeccionesTab from './ProyeccionesTab';
 import BenchmarksTab from './BenchmarksTab';
+import NoticiasTab from './NoticiasTab';
 import CalendarioTab from './CalendarioTab';
 import { FlagUS, FlagAR } from './FlagIcons';
-type Tab = 'resumen' | 'tenencias' | 'informe' | 'proyecciones' | 'benchmarks' | 'calendario';
+type Tab = 'resumen' | 'tenencias' | 'informe' | 'proyecciones' | 'benchmarks' | 'noticias' | 'calendario';
 
 const DIMS_TENENCIAS = [
   { key: 'TIPO',       label: 'Tipo de Activo'    },
@@ -33,7 +34,8 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'tenencias',    label: 'Tenencias'    },
   { id: 'informe',      label: 'Informe'      },
   { id: 'proyecciones', label: 'Proyecciones' },
-  { id: 'benchmarks',   label: 'Comparación' },
+  { id: 'benchmarks',   label: 'Benchmarks'  },
+  { id: 'noticias',     label: 'Noticias'    },
   { id: 'calendario',   label: 'Calendario'  },
 ];
 
@@ -487,14 +489,21 @@ const [uploadOpen, setUploadOpen] = useState(false);
         </section>
       )}
 
-      {/* ── Tab: Comparación (Benchmarks) ───────────────────────────────────── */}
+      {/* ── Tab: Benchmarks ───────────────────────────────────────────────────── */}
       {tab === 'benchmarks' && (
         <section style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           <BenchmarksTab data={data} />
         </section>
       )}
 
-      {/* ── Tab: Calendario (Noticias + Eventos) ─────────────────────────────── */}
+      {/* ── Tab: Noticias ─────────────────────────────────────────────────────── */}
+      {tab === 'noticias' && (
+        <section style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+          <NoticiasTab data={data} />
+        </section>
+      )}
+
+      {/* ── Tab: Calendario (Eventos) ─────────────────────────────────────────── */}
       {tab === 'calendario' && (
         <section style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           <CalendarioTab data={data} />
