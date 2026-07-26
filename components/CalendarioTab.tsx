@@ -38,6 +38,13 @@ function fmtFechaEvento(fecha: string): string {
   return d.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
 }
 
+/** Formatea el cobro estimado, ej. "≈ US$ 4,23" o "≈ $ 1.240". */
+function fmtMonto(monto: number, moneda?: string): string {
+  const simbolo = moneda === 'ARS' ? '$' : 'US$';
+  const dec = monto >= 100 ? 0 : 2;
+  return `≈ ${simbolo} ${monto.toLocaleString('es-AR', { minimumFractionDigits: dec, maximumFractionDigits: dec })}`;
+}
+
 function Pill({ label, active, color, onClick }: {
   label: string; active: boolean; color?: string; onClick: () => void;
 }) {
@@ -80,9 +87,15 @@ function celdasDelMes(year: number, mesIdx: number): (number | null)[] {
   return celdas;
 }
 
-function LogoTicker({ ticker, logoUrl, size }: { ticker: string; logoUrl?: string; size: number }) {
+// Logos de acciones/ETF vía Financial Modeling Prep (URL pública directa por ticker,
+// sin API key). Los bonos ARG no tienen logo: caen al fallback de inicial.
+function logoUrlDe(ticker: string): string {
+  return `https://financialmodelingprep.com/image-stock/${encodeURIComponent(ticker)}.png`;
+}
+
+function LogoTicker({ ticker, conLogo, size }: { ticker: string; conLogo: boolean; size: number }) {
   const [error, setError] = useState(false);
-  if (!logoUrl || error) {
+  if (!conLogo || error) {
     return (
       <div style={{
         width: size, height: size, borderRadius: '50%', background: 'var(--border)',
@@ -96,7 +109,7 @@ function LogoTicker({ ticker, logoUrl, size }: { ticker: string; logoUrl?: strin
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={logoUrl}
+      src={logoUrlDe(ticker)}
       alt={ticker}
       width={size}
       height={size}
@@ -106,14 +119,16 @@ function LogoTicker({ ticker, logoUrl, size }: { ticker: string; logoUrl?: strin
   );
 }
 
+// Los bonos ARG (renta/amortización) no tienen logo de empresa; el resto sí.
+function tickerConLogo(tipo: EventoTipo): boolean {
+  return tipo !== 'renta' && tipo !== 'amortizacion';
+}
+
 function DiaCelda({
-  dia, year, mesIdx, eventosDia, logos, esHoy,
+  dia, eventosDia, esHoy,
 }: {
   dia: number | null;
-  year: number;
-  mesIdx: number;
   eventosDia?: EventoCalendario[];
-  logos: Record<string, string>;
   esHoy: boolean;
 }) {
   if (dia === null) {
@@ -137,10 +152,11 @@ function DiaCelda({
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
           {eventosDia.map((e, i) => {
             const meta = TIPO_EVENTO_META[e.tipo];
-            const tip = `${e.ticker}: ${meta.label}${e.detalle ? ` (${e.detalle})` : ''}`;
+            const montoTxt = e.montoEstimado != null && e.montoEstimado > 0 ? ` ${fmtMonto(e.montoEstimado, e.monedaMonto)}` : '';
+            const tip = `${e.ticker}: ${meta.label}${e.detalle ? ` (${e.detalle})` : ''}${montoTxt}`;
             return (
               <div key={i} title={tip} style={{ position: 'relative' }}>
-                <LogoTicker ticker={e.ticker} logoUrl={logos[e.ticker]} size={30} />
+                <LogoTicker ticker={e.ticker} conLogo={tickerConLogo(e.tipo)} size={30} />
                 <span style={{
                   position: 'absolute', bottom: -1, right: -1, width: 9, height: 9,
                   borderRadius: '50%', background: meta.color, border: '1.5px solid var(--card)',
@@ -202,7 +218,19 @@ export default function CalendarioTab({ data }: Props) {
     return [...set].sort();
   }, [tenenciasPorMes]);
 
-  const { eventos, finnhubConfigured, logos, loadingEventos, errorEventos } = useCalendario(tickersActivos, year, tickersArg);
+  // Valor de mercado (USD) de cada posición del último mes, para estimar el cobro real.
+  const tenencias = useMemo(() => {
+    const meses = Object.keys(tenenciasPorMes).sort();
+    const ultimoMes = meses[meses.length - 1];
+    const items = tenenciasPorMes[ultimoMes] ?? [];
+    const map: Record<string, number> = {};
+    for (const t of items) {
+      if (t.tenencia_usd > 0) map[t.ticker.toUpperCase()] = t.tenencia_usd;
+    }
+    return map;
+  }, [tenenciasPorMes]);
+
+  const { eventos, loadingEventos, errorEventos } = useCalendario(tickersActivos, year, tickersArg, tenencias);
 
   const [filtroTicker, setFiltroTicker] = useState<string | null>(null);
   const [filtroTipos, setFiltroTipos] = useState<EventoTipo[] | null>(null);
@@ -241,6 +269,18 @@ export default function CalendarioTab({ data }: Props) {
       .sort((a, b) => a.fecha.localeCompare(b.fecha)),
     [eventosFiltrados, year, mesIdx],
   );
+
+  // Total estimado a cobrar en el mes, agrupado por moneda (los balances no suman).
+  const totalMesPorMoneda = useMemo(() => {
+    const acc: Record<string, number> = {};
+    for (const e of eventosDelMes) {
+      if (e.montoEstimado != null && e.montoEstimado > 0) {
+        const m = e.monedaMonto || 'USD';
+        acc[m] = (acc[m] ?? 0) + e.montoEstimado;
+      }
+    }
+    return acc;
+  }, [eventosDelMes]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1, minHeight: 0, overflowY: 'auto' }}>
@@ -297,13 +337,6 @@ export default function CalendarioTab({ data }: Props) {
         </div>
       )}
 
-      {!finnhubConfigured && (
-        <p style={{ margin: 0, fontSize: 11, color: 'var(--muted)' }}>
-          Balances no disponibles: configurá <code>FINNHUB_API_KEY</code> para verlos (los dividendos no la necesitan).{' '}
-          <a href="https://finnhub.io/register" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)' }}>Conseguir key gratis</a>.
-        </p>
-      )}
-
       {loadingEventos ? (
         <Card>
           <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)' }}>Cargando eventos de {year}…</p>
@@ -323,10 +356,7 @@ export default function CalendarioTab({ data }: Props) {
                   <DiaCelda
                     key={i}
                     dia={dia}
-                    year={year}
-                    mesIdx={mesIdx}
                     eventosDia={dia !== null ? eventosPorDia.get(key) : undefined}
-                    logos={logos}
                     esHoy={key === hoyKey}
                   />
                 );
@@ -335,9 +365,22 @@ export default function CalendarioTab({ data }: Props) {
           </div>
 
           <Card>
-            <p style={{ margin: 0, fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--primary)' }}>
-              Eventos de {MESES_LABEL[mesIdx]}
-            </p>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+              <p style={{ margin: 0, fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--primary)' }}>
+                Eventos de {MESES_LABEL[mesIdx]}
+              </p>
+              {Object.keys(totalMesPorMoneda).length > 0 && (
+                <p
+                  title="Total estimado a cobrar este mes (dividendos + renta + amortización) según tu tenencia y precios actuales"
+                  style={{ margin: 0, fontSize: 12, fontWeight: 700, color: 'var(--text)' }}
+                >
+                  A cobrar:{' '}
+                  {Object.entries(totalMesPorMoneda)
+                    .map(([moneda, total]) => fmtMonto(total, moneda))
+                    .join('  ·  ')}
+                </p>
+              )}
+            </div>
             {eventosDelMes.length === 0 ? (
               <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)' }}>Sin eventos este mes para los tickers actuales.</p>
             ) : (
@@ -346,7 +389,7 @@ export default function CalendarioTab({ data }: Props) {
                   const meta = TIPO_EVENTO_META[e.tipo];
                   return (
                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, padding: '4px 0' }}>
-                      <LogoTicker ticker={e.ticker} logoUrl={logos[e.ticker]} size={20} />
+                      <LogoTicker ticker={e.ticker} conLogo={tickerConLogo(e.tipo)} size={20} />
                       <span style={{ color: 'var(--muted)', minWidth: 80, flexShrink: 0 }}>{fmtFechaEvento(e.fecha)}</span>
                       <span style={{ fontWeight: 700, color: 'var(--text)', minWidth: 56 }}>{e.ticker}</span>
                       <span style={{
@@ -354,6 +397,14 @@ export default function CalendarioTab({ data }: Props) {
                         padding: '2px 8px', borderRadius: 10,
                       }}>{meta.label}</span>
                       {e.detalle && <span style={{ color: 'var(--muted)' }}>{e.detalle}</span>}
+                      {e.montoEstimado != null && e.montoEstimado > 0 && (
+                        <span
+                          title="Cobro estimado según tu tenencia y el precio de mercado actual"
+                          style={{ marginLeft: 'auto', fontWeight: 700, color: meta.color, whiteSpace: 'nowrap' }}
+                        >
+                          {fmtMonto(e.montoEstimado, e.monedaMonto)}
+                        </span>
+                      )}
                     </div>
                   );
                 })}

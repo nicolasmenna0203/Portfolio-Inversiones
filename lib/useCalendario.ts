@@ -6,8 +6,6 @@ import type { NoticiaItem, EventoCalendario } from '@/types';
 interface UseCalendarioResult {
   noticias: NoticiaItem[];
   eventos: EventoCalendario[];
-  finnhubConfigured: boolean;
-  logos: Record<string, string>;
   loadingNoticias: boolean;
   loadingEventos: boolean;
   errorNoticias: string | null;
@@ -19,19 +17,19 @@ export function useCalendario(
   tickers: string[],
   year: number = new Date().getUTCFullYear(),
   tickersArg: string[] = [],
+  tenencias: Record<string, number> = {},
 ): UseCalendarioResult {
   const [noticias, setNoticias] = useState<NoticiaItem[]>([]);
   const [loadingNoticias, setLoadingNoticias] = useState(true);
   const [errorNoticias, setErrorNoticias] = useState<string | null>(null);
 
   const [eventos, setEventos] = useState<EventoCalendario[]>([]);
-  const [finnhubConfigured, setFinnhubConfigured] = useState(true);
-  const [logos, setLogos] = useState<Record<string, string>>({});
   const [loadingEventos, setLoadingEventos] = useState(true);
   const [errorEventos, setErrorEventos] = useState<string | null>(null);
 
   const tickersKey = tickers.join(',');
   const tickersArgKey = tickersArg.join(',');
+  const tenenciasKey = JSON.stringify(tenencias);
 
   useEffect(() => {
     setLoadingNoticias(true);
@@ -51,18 +49,25 @@ export function useCalendario(
     if (!tickersKey && !tickersArgKey) { setLoadingEventos(false); return; }
     setLoadingEventos(true);
     setErrorEventos(null);
-    fetch(`/api/calendario-financiero?tickers=${tickersKey}&tickersArg=${tickersArgKey}&year=${year}`)
+    fetch('/api/calendario-financiero', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tickers: tickersKey ? tickersKey.split(',') : [],
+        tickersArg: tickersArgKey ? tickersArgKey.split(',') : [],
+        tenencias: JSON.parse(tenenciasKey),
+        year,
+      }),
+    })
       .then((r) => r.json())
       .then((json) => {
         if (json.error) throw new Error(json.error);
         setEventos(json.eventos ?? []);
-        setFinnhubConfigured(json.finnhubConfigured ?? false);
-        setLogos(json.logos ?? {});
       })
       .catch((e) => setErrorEventos(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoadingEventos(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tickersKey, tickersArgKey, year]);
+  }, [tickersKey, tickersArgKey, tenenciasKey, year]);
 
-  return { noticias, eventos, finnhubConfigured, logos, loadingNoticias, loadingEventos, errorNoticias, errorEventos };
+  return { noticias, eventos, loadingNoticias, loadingEventos, errorNoticias, errorEventos };
 }
