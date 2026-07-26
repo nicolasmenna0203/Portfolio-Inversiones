@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { fetchCalendarioFinanciero } from '@/lib/calendario';
 import type { CalendarioResponse } from '@/types';
 
+export const runtime = 'nodejs'; // Nasdaq/bonistas requieren fetch con User-Agent en runtime Node
 export const revalidate = 21600; // 6 horas
 
 function fmtFecha(d: Date): string {
@@ -15,14 +16,16 @@ export async function GET(req: NextRequest) {
     if (!tickersParam) {
       return NextResponse.json({ error: 'Falta query param tickers' }, { status: 400 });
     }
-    const tickers = tickersParam.split(',').filter(Boolean);
+    const tickersUsa = tickersParam.split(',').filter(Boolean);
+    const tickersArg = (url.searchParams.get('tickersArg') ?? '').split(',').filter(Boolean);
 
-    const hoy = new Date();
-    const en90dias = new Date(hoy.getTime() + 90 * 86_400_000);
-    const desde = fmtFecha(hoy);
-    const hasta = fmtFecha(en90dias);
+    const yearParam = url.searchParams.get('year');
+    const year = yearParam ? parseInt(yearParam, 10) : new Date().getUTCFullYear();
 
-    const body: CalendarioResponse = await fetchCalendarioFinanciero(tickers, desde, hasta);
+    const desde = fmtFecha(new Date(Date.UTC(year, 0, 1)));
+    const hasta = fmtFecha(new Date(Date.UTC(year, 11, 31)));
+
+    const body: CalendarioResponse = await fetchCalendarioFinanciero(tickersUsa, tickersArg, desde, hasta);
 
     return NextResponse.json(body, {
       headers: { 'Cache-Control': 's-maxage=21600, stale-while-revalidate=86400' },

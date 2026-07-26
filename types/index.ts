@@ -110,7 +110,12 @@ export interface NoticiasResponse {
 
 // ── Calendario: Eventos (earnings/dividendos) ────────────────────────────────
 
-export type EventoTipo = 'dividendo' | 'earnings';
+export type EventoTipo =
+  | 'dividendo'        // dividendo ya pagado (histórico Yahoo)
+  | 'dividendo-fut'    // dividendo futuro confirmado (Nasdaq)
+  | 'earnings'         // balance / reporte de resultados (Finnhub)
+  | 'renta'            // cupón de interés de bono/ON ARG (bonistas)
+  | 'amortizacion';    // devolución de capital de bono/ON ARG (bonistas)
 
 export interface EventoCalendario {
   ticker: string;
@@ -123,5 +128,6 @@ export interface CalendarioResponse {
   eventos: EventoCalendario[];
   errores: string[];
   finnhubConfigured: boolean;
+  logos: Record<string, string>; // ticker -> URL de logo (Finnhub)
   generatedAt: number;
 }

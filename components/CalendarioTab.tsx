@@ -1,18 +1,37 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import type { DashboardData, EventoTipo } from '@/types';
+import type { DashboardData, EventoTipo, EventoCalendario } from '@/types';
 import { useCalendario } from '@/lib/useCalendario';
 import { TIPOS_VALIDOS, TICKERS_INCLUIR, TICKERS_EXCLUIR } from '@/lib/tickersElegibles';
+import { MAPEO_BONOS_ARG } from '@/lib/bonosArg';
 
 interface Props {
   data: DashboardData;
 }
 
 const TIPO_EVENTO_META: Record<EventoTipo, { label: string; color: string }> = {
-  dividendo: { label: 'Dividendo', color: '#19d3f3' },
-  earnings:  { label: 'Balance',   color: '#ef553b' },
+  dividendo:      { label: 'Dividendo',        color: '#19d3f3' },
+  'dividendo-fut':{ label: 'Div. confirmado',  color: '#00b3e6' },
+  earnings:       { label: 'Balance',          color: '#ef553b' },
+  renta:          { label: 'Renta',            color: '#00cc96' },
+  amortizacion:   { label: 'Amortización',     color: '#ffa15a' },
 };
+
+// Tipos agrupados para los filtros (dividendo histórico + futuro se filtran juntos).
+const FILTROS_TIPO: { label: string; tipos: EventoTipo[] }[] = [
+  { label: 'Balances',      tipos: ['earnings'] },
+  { label: 'Dividendos',    tipos: ['dividendo', 'dividendo-fut'] },
+  { label: 'Renta',         tipos: ['renta'] },
+  { label: 'Amortización',  tipos: ['amortizacion'] },
+];
+
+const MESES_LABEL = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+];
+
+const DIAS_SEMANA = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
 function fmtFechaEvento(fecha: string): string {
   const d = new Date(fecha + 'T00:00:00Z');
@@ -49,8 +68,109 @@ function Card({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** Genera las celdas (con padding de días de otros meses) para una grilla de semanas lunes-domingo. */
+function celdasDelMes(year: number, mesIdx: number): (number | null)[] {
+  const primerDia = new Date(Date.UTC(year, mesIdx, 1));
+  const diasEnMes = new Date(Date.UTC(year, mesIdx + 1, 0)).getUTCDate();
+  const offset = (primerDia.getUTCDay() + 6) % 7; // lunes=0..domingo=6
+
+  const celdas: (number | null)[] = Array(offset).fill(null);
+  for (let d = 1; d <= diasEnMes; d++) celdas.push(d);
+  while (celdas.length % 7 !== 0) celdas.push(null);
+  return celdas;
+}
+
+function LogoTicker({ ticker, logoUrl, size }: { ticker: string; logoUrl?: string; size: number }) {
+  const [error, setError] = useState(false);
+  if (!logoUrl || error) {
+    return (
+      <div style={{
+        width: size, height: size, borderRadius: '50%', background: 'var(--border)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: size * 0.4, fontWeight: 700, color: 'var(--muted)', flexShrink: 0,
+      }}>
+        {ticker[0]}
+      </div>
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={logoUrl}
+      alt={ticker}
+      width={size}
+      height={size}
+      onError={() => setError(true)}
+      style={{ borderRadius: '50%', flexShrink: 0, objectFit: 'contain', background: '#fff' }}
+    />
+  );
+}
+
+function DiaCelda({
+  dia, year, mesIdx, eventosDia, logos, esHoy,
+}: {
+  dia: number | null;
+  year: number;
+  mesIdx: number;
+  eventosDia?: EventoCalendario[];
+  logos: Record<string, string>;
+  esHoy: boolean;
+}) {
+  if (dia === null) {
+    return <div style={{ minHeight: 88, borderRadius: 8 }} />;
+  }
+
+  return (
+    <div style={{
+      minHeight: 88, borderRadius: 8, padding: '6px 6px',
+      border: esHoy ? '1px solid var(--primary)' : '1px solid var(--border)',
+      background: esHoy ? 'color-mix(in srgb, var(--primary) 10%, var(--card))' : 'var(--card)',
+      display: 'flex', flexDirection: 'column', gap: 4,
+    }}>
+      <span style={{
+        fontSize: 11, fontWeight: esHoy ? 800 : 600,
+        color: esHoy ? 'var(--primary)' : 'var(--muted)',
+      }}>
+        {dia}
+      </span>
+      {eventosDia && eventosDia.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+          {eventosDia.map((e, i) => {
+            const meta = TIPO_EVENTO_META[e.tipo];
+            const tip = `${e.ticker}: ${meta.label}${e.detalle ? ` (${e.detalle})` : ''}`;
+            return (
+              <div key={i} title={tip} style={{ position: 'relative' }}>
+                <LogoTicker ticker={e.ticker} logoUrl={logos[e.ticker]} size={30} />
+                <span style={{
+                  position: 'absolute', bottom: -1, right: -1, width: 9, height: 9,
+                  borderRadius: '50%', background: meta.color, border: '1.5px solid var(--card)',
+                }} />
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CalendarioTab({ data }: Props) {
   const { tenenciasPorMes } = data;
+
+  const hoy = useMemo(() => new Date(), []);
+  const [year, setYear] = useState(hoy.getUTCFullYear());
+  const [mesIdx, setMesIdx] = useState(hoy.getUTCMonth());
+
+  const irMesAnterior = () => {
+    if (mesIdx === 0) { setMesIdx(11); setYear((y) => y - 1); }
+    else setMesIdx((m) => m - 1);
+  };
+  const irMesSiguiente = () => {
+    if (mesIdx === 11) { setMesIdx(0); setYear((y) => y + 1); }
+    else setMesIdx((m) => m + 1);
+  };
+  const irHoy = () => { setYear(hoy.getUTCFullYear()); setMesIdx(hoy.getUTCMonth()); };
+  const esMesActual = year === hoy.getUTCFullYear() && mesIdx === hoy.getUTCMonth();
 
   const tickersActivos = useMemo(() => {
     const meses = Object.keys(tenenciasPorMes).sort();
@@ -69,10 +189,23 @@ export default function CalendarioTab({ data }: Props) {
     return [...set].sort();
   }, [tenenciasPorMes]);
 
-  const { eventos, finnhubConfigured, loadingEventos, errorEventos } = useCalendario(tickersActivos);
+  // Bonos/ONs ARG de la cartera que tengan cronograma de pagos mapeado (bonistas).
+  const tickersArg = useMemo(() => {
+    const meses = Object.keys(tenenciasPorMes).sort();
+    const ultimoMes = meses[meses.length - 1];
+    const items = tenenciasPorMes[ultimoMes] ?? [];
+    const set = new Set(
+      items
+        .map((t) => t.ticker.toUpperCase())
+        .filter((ticker) => ticker in MAPEO_BONOS_ARG),
+    );
+    return [...set].sort();
+  }, [tenenciasPorMes]);
+
+  const { eventos, finnhubConfigured, logos, loadingEventos, errorEventos } = useCalendario(tickersActivos, year, tickersArg);
 
   const [filtroTicker, setFiltroTicker] = useState<string | null>(null);
-  const [filtroTipoEvento, setFiltroTipoEvento] = useState<EventoTipo | null>(null);
+  const [filtroTipos, setFiltroTipos] = useState<EventoTipo[] | null>(null);
 
   const tickersDisponibles = useMemo(() => {
     const set = new Set<string>();
@@ -83,13 +216,77 @@ export default function CalendarioTab({ data }: Props) {
   const eventosFiltrados = useMemo(
     () => eventos.filter((e) =>
       (!filtroTicker || e.ticker === filtroTicker) &&
-      (!filtroTipoEvento || e.tipo === filtroTipoEvento),
+      (!filtroTipos || filtroTipos.includes(e.tipo)),
     ),
-    [eventos, filtroTicker, filtroTipoEvento],
+    [eventos, filtroTicker, filtroTipos],
+  );
+
+  const eventosPorDia = useMemo(() => {
+    const map = new Map<string, EventoCalendario[]>();
+    for (const e of eventosFiltrados) {
+      const arr = map.get(e.fecha) ?? [];
+      arr.push(e);
+      map.set(e.fecha, arr);
+    }
+    return map;
+  }, [eventosFiltrados]);
+
+  const hoyKey = useMemo(() => hoy.toISOString().slice(0, 10), [hoy]);
+
+  const celdas = useMemo(() => celdasDelMes(year, mesIdx), [year, mesIdx]);
+
+  const eventosDelMes = useMemo(
+    () => eventosFiltrados
+      .filter((e) => e.fecha.startsWith(`${year}-${String(mesIdx + 1).padStart(2, '0')}`))
+      .sort((a, b) => a.fecha.localeCompare(b.fecha)),
+    [eventosFiltrados, year, mesIdx],
   );
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1, minHeight: 0, overflowY: 'auto' }}>
+
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button
+            onClick={irMesAnterior}
+            style={{
+              border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)',
+              borderRadius: 8, padding: '4px 10px', cursor: 'pointer', fontSize: 13,
+            }}
+          >‹</button>
+          <p style={{ margin: 0, fontSize: 16, fontWeight: 700, minWidth: 150, textAlign: 'center' }}>
+            {MESES_LABEL[mesIdx]} {year}
+          </p>
+          <button
+            onClick={irMesSiguiente}
+            style={{
+              border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)',
+              borderRadius: 8, padding: '4px 10px', cursor: 'pointer', fontSize: 13,
+            }}
+          >›</button>
+          {!esMesActual && (
+            <Pill label="Hoy" active={false} onClick={irHoy} />
+          )}
+        </div>
+
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+          <Pill label="Todos" active={filtroTipos === null} onClick={() => setFiltroTipos(null)} />
+          {FILTROS_TIPO.map((f) => {
+            const activo = filtroTipos !== null && f.tipos.every((t) => filtroTipos.includes(t)) && filtroTipos.length === f.tipos.length;
+            return (
+              <Pill
+                key={f.label}
+                label={f.label}
+                active={activo}
+                color={TIPO_EVENTO_META[f.tipos[0]].color}
+                onClick={() => setFiltroTipos((prev) =>
+                  prev !== null && prev.length === f.tipos.length && f.tipos.every((t) => prev.includes(t)) ? null : f.tipos,
+                )}
+              />
+            );
+          })}
+        </div>
+      </div>
 
       {tickersDisponibles.length > 0 && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flexShrink: 0 }}>
@@ -100,52 +297,75 @@ export default function CalendarioTab({ data }: Props) {
         </div>
       )}
 
-      {/* ── Próximos eventos ──────────────────────────────────────────────── */}
-      <Card>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-          <p style={{ margin: 0, fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--primary)' }}>
-            Próximos Eventos (90 días)
-          </p>
-          {finnhubConfigured && (
-            <div style={{ display: 'flex', gap: 4 }}>
-              <Pill label="Todos" active={filtroTipoEvento === null} onClick={() => setFiltroTipoEvento(null)} />
-              <Pill label="Balances" active={filtroTipoEvento === 'earnings'} color={TIPO_EVENTO_META.earnings.color} onClick={() => setFiltroTipoEvento((p) => p === 'earnings' ? null : 'earnings')} />
-              <Pill label="Dividendos" active={filtroTipoEvento === 'dividendo'} color={TIPO_EVENTO_META.dividendo.color} onClick={() => setFiltroTipoEvento((p) => p === 'dividendo' ? null : 'dividendo')} />
-            </div>
-          )}
-        </div>
+      {!finnhubConfigured && (
+        <p style={{ margin: 0, fontSize: 11, color: 'var(--muted)' }}>
+          Balances no disponibles: configurá <code>FINNHUB_API_KEY</code> para verlos (los dividendos no la necesitan).{' '}
+          <a href="https://finnhub.io/register" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)' }}>Conseguir key gratis</a>.
+        </p>
+      )}
 
-        {!finnhubConfigured ? (
-          <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)' }}>
-            Configurá tu API key gratuita de Finnhub (variable <code>FINNHUB_API_KEY</code>) para ver el calendario de balances y dividendos.{' '}
-            <a href="https://finnhub.io/register" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)' }}>Conseguir key gratis</a>.
-          </p>
-        ) : loadingEventos ? (
-          <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)' }}>Cargando eventos…</p>
-        ) : eventosFiltrados.length === 0 ? (
-          <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)' }}>Sin eventos próximos para los tickers actuales.</p>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {eventosFiltrados.map((e, i) => {
-              const meta = TIPO_EVENTO_META[e.tipo];
-              return (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, padding: '4px 0' }}>
-                  <span style={{ color: 'var(--muted)', minWidth: 80, flexShrink: 0 }}>{fmtFechaEvento(e.fecha)}</span>
-                  <span style={{ fontWeight: 700, color: 'var(--text)', minWidth: 56 }}>{e.ticker}</span>
-                  <span style={{
-                    fontSize: 10, fontWeight: 700, color: meta.color, background: `${meta.color}22`,
-                    padding: '2px 8px', borderRadius: 10,
-                  }}>{meta.label}</span>
-                  {e.detalle && <span style={{ color: 'var(--muted)' }}>{e.detalle}</span>}
-                </div>
-              );
-            })}
+      {loadingEventos ? (
+        <Card>
+          <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)' }}>Cargando eventos de {year}…</p>
+        </Card>
+      ) : (
+        <>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
+              {DIAS_SEMANA.map((d) => (
+                <div key={d} style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textAlign: 'center' }}>{d}</div>
+              ))}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
+              {celdas.map((dia, i) => {
+                const key = dia !== null ? `${year}-${String(mesIdx + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}` : '';
+                return (
+                  <DiaCelda
+                    key={i}
+                    dia={dia}
+                    year={year}
+                    mesIdx={mesIdx}
+                    eventosDia={dia !== null ? eventosPorDia.get(key) : undefined}
+                    logos={logos}
+                    esHoy={key === hoyKey}
+                  />
+                );
+              })}
+            </div>
           </div>
-        )}
-        {errorEventos && (
-          <p style={{ margin: 0, fontSize: 11, color: '#ef553b' }}>Algunos eventos no pudieron cargarse: {errorEventos}</p>
-        )}
-      </Card>
+
+          <Card>
+            <p style={{ margin: 0, fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--primary)' }}>
+              Eventos de {MESES_LABEL[mesIdx]}
+            </p>
+            {eventosDelMes.length === 0 ? (
+              <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)' }}>Sin eventos este mes para los tickers actuales.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {eventosDelMes.map((e, i) => {
+                  const meta = TIPO_EVENTO_META[e.tipo];
+                  return (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, padding: '4px 0' }}>
+                      <LogoTicker ticker={e.ticker} logoUrl={logos[e.ticker]} size={20} />
+                      <span style={{ color: 'var(--muted)', minWidth: 80, flexShrink: 0 }}>{fmtFechaEvento(e.fecha)}</span>
+                      <span style={{ fontWeight: 700, color: 'var(--text)', minWidth: 56 }}>{e.ticker}</span>
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, color: meta.color, background: `${meta.color}22`,
+                        padding: '2px 8px', borderRadius: 10,
+                      }}>{meta.label}</span>
+                      {e.detalle && <span style={{ color: 'var(--muted)' }}>{e.detalle}</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Card>
+        </>
+      )}
+
+      {errorEventos && (
+        <p style={{ margin: 0, fontSize: 11, color: '#ef553b' }}>Algunos eventos no pudieron cargarse: {errorEventos}</p>
+      )}
     </div>
   );
 }
