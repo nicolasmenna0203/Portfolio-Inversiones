@@ -50,6 +50,8 @@ export async function fetchDividendosFuturos(
   tickers: string[],
   desde: string,
   hasta: string,
+  tenencias: Record<string, number> = {},
+  precios: Record<string, number> = {},
 ): Promise<EventoCalendario[]> {
   const wanted = new Set(tickers.map((t) => t.toUpperCase()));
   if (wanted.size === 0) return [];
@@ -78,11 +80,19 @@ export async function fetchDividendosFuturos(
       if (vistos.has(key)) continue;
       vistos.add(key);
 
+      // cobro ≈ (tenencia_usd / precio_acción) × dividendo_por_acción
+      const tenenciaUsd = tenencias[sym];
+      const precio = precios[sym];
+      const montoEstimado = tenenciaUsd && precio && r.dividend_Rate
+        ? (tenenciaUsd / precio) * r.dividend_Rate
+        : undefined;
+
       eventos.push({
         ticker: sym,
         tipo: 'dividendo-fut',
         fecha: pagoIso,
         detalle: r.dividend_Rate ? `${r.dividend_Rate} USD/acción (confirmado)` : 'Confirmado',
+        ...(montoEstimado != null ? { montoEstimado, monedaMonto: 'USD' } : {}),
       });
     }
   }

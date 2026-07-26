@@ -65,11 +65,18 @@ async function fetchPagosBonistas(): Promise<PagoBonista[]> {
 /**
  * Devuelve eventos de renta y amortización de los bonos/ONs ARG de la cartera,
  * dentro del rango [desde, hasta], mapeando cada ticker al símbolo de bonistas.
+ *
+ * Si se pasan `tenencias` (ticker→USD) y `precios` (ticker→USD por 100 nominales),
+ * estima el cobro real: nominales ≈ tenencia_usd / precio_por_100 × 100, y el
+ * flujo de bonistas ya viene "por 100 nominales", así que
+ * cobro = (tenencia_usd / precio_por_100) × monto_por_100.
  */
 export async function fetchBonosArg(
   tickers: string[],
   desde: string,
   hasta: string,
+  tenencias: Record<string, number> = {},
+  precios: Record<string, number> = {},
 ): Promise<EventoCalendario[]> {
   // Símbolo bonista → ticker original, solo para los tickers pedidos que tengan mapeo.
   const simboloATicker = new Map<string, string>();
@@ -88,12 +95,19 @@ export async function fetchBonosArg(
     if (p.fecha < desde || p.fecha > hasta) continue;
 
     const moneda = p.moneda || 'USD';
+    // Factor de escala = nominales/100 = tenencia_usd / precio_usd_por_100.
+    // Solo aplica si conocemos tenencia y precio del bono.
+    const tenenciaUsd = tenencias[ticker];
+    const precio = precios[ticker];
+    const factor = tenenciaUsd && precio ? tenenciaUsd / precio : null;
+
     if (p.cupon > 0) {
       eventos.push({
         ticker,
         tipo: 'renta',
         fecha: p.fecha,
-        detalle: `Renta ${p.cupon.toFixed(2)} ${moneda}`,
+        detalle: `Renta ${p.cupon.toFixed(2)} ${moneda}/100 VN`,
+        ...(factor != null ? { montoEstimado: factor * p.cupon, monedaMonto: moneda } : {}),
       });
     }
     if (p.principal > 0) {
@@ -101,7 +115,8 @@ export async function fetchBonosArg(
         ticker,
         tipo: 'amortizacion',
         fecha: p.fecha,
-        detalle: `Amort. ${p.principal.toFixed(2)} ${moneda}`,
+        detalle: `Amort. ${p.principal.toFixed(2)} ${moneda}/100 VN`,
+        ...(factor != null ? { montoEstimado: factor * p.principal, monedaMonto: moneda } : {}),
       });
     }
   }
