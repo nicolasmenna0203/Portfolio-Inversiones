@@ -253,11 +253,25 @@
     font-size: 16px; /* evita zoom automático en iOS */
     padding-top: 13px;
     padding-bottom: 13px;
+    min-height: 48px;
   }
 
   .login-submit {
     padding: 14px 20px;
     font-size: 15px;
+    min-height: 50px;
+  }
+
+  /* El ojito de mostrar/ocultar también necesita área táctil propia */
+  .login-eye-btn {
+    min-width: 44px;
+    min-height: 44px;
+    justify-content: center;
+  }
+
+  /* Respetar la barra de gestos en iPhone */
+  .login-card {
+    padding-bottom: calc(40px + env(safe-area-inset-bottom));
   }
 
   .login-grid {

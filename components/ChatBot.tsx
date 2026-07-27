@@ -230,8 +230,11 @@ export default function ChatBot({ data }: Props) {
     <>
       {/* ── Burbuja flotante ── */}
       <button
+        className="chat-fab"
         onClick={() => setOpen(o => !o)}
         title="Asistente financiero"
+        aria-label={open ? 'Cerrar asistente' : 'Abrir asistente financiero'}
+        aria-expanded={open}
         style={{
           position: 'fixed',
           bottom: 24,
@@ -258,7 +261,7 @@ export default function ChatBot({ data }: Props) {
 
       {/* ── Panel del chat ── */}
       {open && (
-        <div style={{
+        <div className="chat-panel" style={{
           position: 'fixed',
           bottom: 86,
           right: 24,
@@ -290,9 +293,8 @@ export default function ChatBot({ data }: Props) {
           </div>
 
           {/* Mensajes */}
-          <div style={{
+          <div className="scroll-y" style={{
             flex: 1,
-            overflowY: 'auto',
             padding: '12px 14px',
             display: 'flex',
             flexDirection: 'column',
@@ -322,7 +324,7 @@ export default function ChatBot({ data }: Props) {
           </div>
 
           {/* Chips de preguntas predeterminadas */}
-          <div style={{
+          <div className="chat-chips scroll-y" style={{
             padding: '8px 12px',
             borderTop: '1px solid var(--border)',
             display: 'flex',
@@ -331,11 +333,11 @@ export default function ChatBot({ data }: Props) {
             background: 'var(--bg)',
             flexShrink: 0,
             maxHeight: 110,
-            overflowY: 'auto',
           }}>
             {PREGUNTAS.map((p) => (
               <button
                 key={p}
+                className="pill-touch"
                 onClick={() => handleSend(p)}
                 style={{
                   padding: '3px 9px',
@@ -373,22 +375,27 @@ export default function ChatBot({ data }: Props) {
               value={input}
               onChange={e => setInput(e.target.value)}
               placeholder="Escribí tu pregunta..."
+              aria-label="Escribí tu pregunta"
+              enterKeyHint="send"
               style={{
                 flex: 1,
-                padding: '7px 10px',
+                minWidth: 0,
+                padding: '9px 10px',
                 borderRadius: 8,
                 border: '1px solid var(--border)',
                 background: 'var(--card)',
                 color: 'var(--text)',
-                fontSize: 12,
                 outline: 'none',
               }}
             />
             <button
               type="submit"
               disabled={!input.trim()}
+              className="chat-send"
+              aria-label="Enviar"
               style={{
                 padding: '7px 12px',
+                flexShrink: 0,
                 borderRadius: 8,
                 border: 'none',
                 background: input.trim() ? 'var(--primary)' : 'var(--border)',

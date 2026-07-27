@@ -195,6 +195,8 @@ export default function EvolucionTipoChart({ tenenciasPorMes, mesesDisponibles, 
             <button
               key={m}
               onClick={() => setMode(m)}
+              className="modo-toggle-btn"
+              aria-pressed={mode === m}
               style={{
                 padding: '3px 12px',
                 fontSize: 11,

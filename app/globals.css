@@ -66,6 +66,13 @@ body {
   transition: background-color 0.2s, color 0.2s;
 }
 
+/* Evita el resaltado gris al tocar y el reajuste de fuente al rotar en iOS */
+* { -webkit-tap-highlight-color: transparent; }
+html { -webkit-text-size-adjust: 100%; }
+
+/* Los inputs por debajo de 16px hacen que iOS haga zoom automático al enfocarlos */
+input, select, textarea { font-size: 16px; }
+
 /* ── Scrollbar ─────────────────────────────────────────────── */
 ::-webkit-scrollbar          { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track    { background: var(--bg); }
@@ -139,16 +146,34 @@ body {
   min-height: 0;
 }
 
+/* ── Scroll suave e inercial dentro de paneles ──────────────── */
+.scroll-y {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* ── Fila de scroll horizontal (tabs, pills) ────────────────── */
+.scroll-x {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.scroll-x::-webkit-scrollbar { display: none; }
+
 /* ──────────────────────────────────────────
-   MOBILE — todo fijo en pantalla, sin scroll
+   MOBILE — ≤ 768px
+   El contenido scrollea; header y tabs quedan fijos arriba.
 ─────────────────────────────────────────── */
 @media (max-width: 768px) {
 
-  /* Layout base */
-  html, body { overflow: hidden; height: 100%; }
-
+  /* En mobile el alto fijo no sirve: el contenido de cada tab varía mucho.
+     `main` ocupa el viewport dinámico y el área de tab scrollea por dentro. */
   main {
-    padding: 12px 14px 14px !important;
+    padding: calc(10px + env(safe-area-inset-top)) 12px 0 !important;
+    padding-left:  calc(12px + env(safe-area-inset-left))  !important;
+    padding-right: calc(12px + env(safe-area-inset-right)) !important;
     height: 100dvh !important;
     gap: 0 !important;
   }
@@ -160,64 +185,305 @@ body {
     gap: 6px !important;
     flex-wrap: nowrap !important;
     align-items: center !important;
+    flex-shrink: 0;
   }
 
+  .mobile-header-title-block { min-width: 0; }
   .mobile-header-title-block p { display: none; } /* ocultar subtítulo "Portfolio · Finanzas" */
-  .mobile-header-title-block h1 { font-size: 15px !important; }
+  .mobile-header-title-block h1 {
+    font-size: 15px !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 
-  .mobile-header-actions { gap: 5px !important; }
+  .mobile-header-actions { gap: 4px !important; flex-shrink: 0; }
 
   /* Fecha: ocultar en mobile */
   .mobile-fecha { display: none !important; }
 
-  /* Botones: solo ícono, sin texto */
+  /* Botones: solo ícono, con área táctil de 40px */
   .theme-toggle .btn-label { display: none; }
   .theme-toggle {
-    padding: 6px 8px !important;
-    font-size: 13px !important;
+    padding: 0 !important;
+    font-size: 15px !important;
+    width: 40px;
+    height: 40px;
+    justify-content: center;
+    flex-shrink: 0;
   }
+  .theme-toggle:active { background: var(--chip-hover); }
 
-  /* ── Tabs ── */
+  /* ── Tabs: una sola fila deslizable en vez de 3 líneas apiladas ── */
   .mobile-tabs {
     padding-top: 6px !important;
     margin-bottom: 10px !important;
+    flex-wrap: nowrap !important;
+    align-items: stretch !important;
+    gap: 0 !important;
+    flex-shrink: 0;
+  }
+  .mobile-tabs nav {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    scroll-snap-type: x proximity;
+    flex: 1;
+    min-width: 0;
+    padding-bottom: 1px;
+  }
+  .mobile-tabs nav::-webkit-scrollbar { display: none; }
+  .mobile-tabs nav button {
+    flex-shrink: 0;
+    scroll-snap-align: start;
+    padding: 9px 14px !important;
+    font-size: 13px !important;
+  }
+  /* Los filtros activos pasan debajo de los tabs, en su propia fila */
+  .mobile-filtros {
+    width: 100%;
+    order: 2;
+    padding: 6px 0 !important;
+  }
+  .mobile-filtros .filtros-sep { display: none; }
+
+  /* ── Área de contenido del tab: acá vive el scroll vertical ── */
+  .tab-scroll {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    /* espacio para que el bot flotante no tape el final del contenido */
+    padding-bottom: calc(84px + env(safe-area-inset-bottom));
   }
 
-  /* ── KPI grid: 3 columnas, cards muy compactas ── */
+  /* ── KPI grid: 1 columna ancha + 2 abajo, legible de un vistazo ── */
   .kpi-grid {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: 1fr 1fr;
     gap: 8px;
+    flex-shrink: 0;
   }
+  /* La cartera total es el dato principal: ocupa el ancho completo */
+  .kpi-grid > *:first-child { grid-column: 1 / -1; }
 
   .kpi-card-mobile {
-    padding: 10px 10px 8px !important;
-    border-radius: 8px !important;
+    padding: 12px 14px 11px !important;
+    border-radius: 10px !important;
     gap: 2px !important;
   }
 
   .kpi-card-mobile .kpi-label {
-    font-size: 8px !important;
-    letter-spacing: 0.06em !important;
+    font-size: 9px !important;
+    letter-spacing: 0.08em !important;
   }
 
   .kpi-card-mobile .kpi-value {
-    font-size: 14px !important;
-    margin-top: 2px !important;
+    font-size: 17px !important;
+    margin-top: 3px !important;
   }
+  .kpi-grid > *:first-child .kpi-value { font-size: 26px !important; }
 
   .kpi-card-mobile .kpi-sub {
-    font-size: 9px !important;
-    margin-top: 1px !important;
-    line-height: 1.2 !important;
+    font-size: 10px !important;
+    margin-top: 2px !important;
+    line-height: 1.25 !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
-  /* ── Tenencias: dos gráficos uno sobre otro, flex ── */
+  /* ── Tenencias: gráficos apilados con alto propio (ya no comprimidos) ── */
   .tenencias-grid {
-    grid-template-columns: 1fr;
-    grid-template-rows: 1fr 1fr;
-    gap: 8px;
-    min-height: 0;
+    display: flex !important;
+    flex-direction: column;
+    gap: 10px;
+    flex: none !important;
   }
+  .tenencias-grid > * { min-height: 300px; }
+
+  /* ── Noticias: las dos columnas se apilan ── */
+  .noticias-grid {
+    flex-direction: column !important;
+    flex: none !important;
+  }
+  .noticias-grid > * { flex: none !important; }
+  .noticias-grid .card-scroll {
+    flex: none !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  /* ── Pills / chips: área táctil mínima cómoda ── */
+  .pill-touch {
+    padding: 9px 14px !important;
+    font-size: 12px !important;
+    min-height: 38px;
+  }
+
+  /* ── Calendario ── */
+  .cal-grid { gap: 3px !important; }
+  .cal-dia {
+    min-height: 58px !important;
+    padding: 4px 3px !important;
+    border-radius: 6px !important;
+  }
+  .cal-dia-num { font-size: 10px !important; }
+  .cal-header-mes { font-size: 15px !important; min-width: 0 !important; }
+  .cal-nav-btn {
+    width: 40px; height: 40px;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0 !important;
+    font-size: 16px !important;
+  }
+  /* La lista de eventos es más útil que la grilla en pantalla chica:
+     los logos se achican para que entren varios por día. */
+  .cal-evento-fila { flex-wrap: wrap; gap: 6px !important; }
+  .cal-evento-fila .cal-evento-monto { margin-left: auto; }
+
+  /* En la grilla mobile la celda no da el ancho para el monto + yield;
+     el dato queda completo en la lista de eventos de abajo. */
+  .cal-dia-montos { display: none !important; }
+
+  /* El scroll vertical lo maneja `.tab-scroll`; anidar otro rompe el gesto */
+  .cal-root,
+  .proy-root,
+  .informe-root {
+    overflow: visible !important;
+    flex: none !important;
+  }
+
+  /* Proyecciones: el panel de parámetros pasa a ancho completo */
+  .proy-controles {
+    flex: 1 1 100% !important;
+    min-width: 0 !important;
+  }
+
+  /* Filtros de ticker: una sola fila deslizable en vez de un bloque enorme */
+  .filtro-tickers {
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+  .filtro-tickers::-webkit-scrollbar { display: none; }
+}
+
+/* ── Mobile (cont.): paneles flotantes ──────────────────────── */
+@media (max-width: 768px) {
+
+  /* El gráfico de Resumen necesita alto propio dentro del scroll */
+  .resumen-chart-wrap { flex: none !important; min-height: 340px; }
+
+  /* Controles de Tenencias en dos filas: slider arriba, dimensiones abajo */
+  .tenencias-controles { gap: 8px !important; }
+  .tenencias-slider { flex-basis: 100%; min-width: 0 !important; }
+  .tenencias-sep { display: none; }
+  .dim-selector {
+    flex-wrap: nowrap !important;
+    width: 100%;
+    gap: 5px !important;
+    padding-bottom: 2px;
+  }
+
+  /* ── Cargar datos: bottom sheet en vez de drawer lateral ── */
+  .upload-panel {
+    top: auto !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 92dvh;
+    border-left: none !important;
+    border-top: 1px solid var(--border);
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.4) !important;
+    animation: sheet-up 0.22s ease-out;
+  }
+  .upload-panel-header { padding: 14px 18px !important; }
+  .upload-panel-body {
+    padding: 16px 18px calc(24px + env(safe-area-inset-bottom)) !important;
+  }
+
+  /* ── ChatBot: burbuja y panel adaptados ──
+     La burbuja flota sobre el contenido: se achica y se atenúa un poco para
+     no tapar datos, y vuelve a opacidad total al tocarla o al abrir el chat. */
+  .chat-fab {
+    bottom: calc(14px + env(safe-area-inset-bottom)) !important;
+    right: 14px !important;
+    width: 46px !important;
+    height: 46px !important;
+    font-size: 19px !important;
+    opacity: 0.82;
+  }
+  .chat-fab:active,
+  .chat-fab[aria-expanded="true"] { opacity: 1; }
+  .chat-panel {
+    left: 8px !important;
+    right: 8px !important;
+    width: auto !important;
+    bottom: calc(76px + env(safe-area-inset-bottom)) !important;
+    max-height: min(70dvh, 460px) !important;
+    animation: sheet-up 0.2s ease-out;
+  }
+  .chat-chips { max-height: 88px !important; }
+  .chat-send { width: 44px; height: 40px; }
+}
+
+@keyframes sheet-up {
+  from { transform: translateY(14px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+/* ── MonthSlider: agrandar el área táctil sin agrandar el círculo ──
+   El thumb visible mide 16px; el pseudo-elemento le da 44px de zona
+   sensible al dedo, que es el mínimo cómodo en pantalla táctil. */
+.month-thumb::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+}
+.month-thumb:focus-visible {
+  box-shadow: 0 0 0 3px var(--primary-dim), 0 1px 6px rgba(0, 0, 0, 0.4);
+}
+
+@media (max-width: 768px) {
+  .month-thumb { width: 20px !important; height: 20px !important; }
+  .month-track { height: 32px !important; }
+  /* Las etiquetas de inicio/fin chocan con el thumb en pantalla angosta y son
+     redundantes: el mes elegido ya se muestra a la izquierda del track. */
+  .month-endlabel { display: none; }
+  /* El gráfico de benchmarks necesita alto propio dentro del scroll */
+  .bench-chart-card { flex: none !important; min-height: 360px; }
+
+  /* Toggle USD/% de los gráficos */
+  .modo-toggle-btn {
+    padding: 10px 18px !important;
+    font-size: 12px !important;
+    min-height: 40px;
+  }
+}
+
+/* ── Pantallas muy angostas (≤ 380px) ───────────────────────── */
+@media (max-width: 380px) {
+  .kpi-card-mobile .kpi-value { font-size: 15px !important; }
+  .kpi-grid > *:first-child .kpi-value { font-size: 23px !important; }
+  .cal-dia { min-height: 50px !important; }
+}
+
+/* ── Landscape en celular: header aún más bajo ──────────────── */
+@media (max-width: 900px) and (orientation: landscape) and (max-height: 500px) {
+  .mobile-header { padding-bottom: 6px !important; }
+  .mobile-tabs { margin-bottom: 6px !important; }
 }
 
 /* ── Range input (sliders) ──────────────────────────────────── */
@@ -264,6 +530,22 @@ input[type="range"]::-moz-range-track {
   background: var(--border);
   height: 4px;
   border-radius: 4px;
+}
+
+/* Mobile: la barra de 4px es imposible de agarrar con el dedo. Se le da 40px
+   de alto transparente y se repinta la pista con un gradiente centrado, así
+   se sigue viendo fina pero el área táctil cubre todo el alto.
+   Va después de las reglas base a propósito: misma especificidad, gana la
+   última que aparece en el archivo. */
+@media (max-width: 768px) {
+  input[type="range"] {
+    height: 40px;
+    border-radius: 0;
+    background: linear-gradient(var(--border), var(--border)) center / 100% 4px no-repeat;
+  }
+  input[type="range"]::-webkit-slider-thumb { width: 20px; height: 20px; }
+  input[type="range"]::-moz-range-thumb     { width: 20px; height: 20px; }
+  input[type="range"]::-moz-range-track     { background: transparent; }
 }
 
 /* ── Recharts overrides ─────────────────────────────────────── */

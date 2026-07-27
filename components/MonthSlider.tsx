@@ -44,12 +44,17 @@ export default function MonthSlider({ meses, selected, onSelect, totalMes, activ
   }
 
   function handleThumbTouchStart() {
-    function onTouchMove(ev: TouchEvent) { selectFromRatio(getRatioFromEvent(ev.touches[0].clientX)); }
+    // `passive: false` permite el preventDefault que evita que la página
+    // scrollee mientras se arrastra el thumb.
+    function onTouchMove(ev: TouchEvent) {
+      ev.preventDefault();
+      selectFromRatio(getRatioFromEvent(ev.touches[0].clientX));
+    }
     function onTouchEnd() {
       window.removeEventListener('touchmove', onTouchMove);
       window.removeEventListener('touchend', onTouchEnd);
     }
-    window.addEventListener('touchmove', onTouchMove);
+    window.addEventListener('touchmove', onTouchMove, { passive: false });
     window.addEventListener('touchend', onTouchEnd);
   }
 
@@ -69,12 +74,13 @@ export default function MonthSlider({ meses, selected, onSelect, totalMes, activ
       </span>
 
       {/* Track */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 5, flex: 1 }}>
-        <span style={{ fontSize: 10, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{meses[0]}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5, flex: 1, minWidth: 0 }}>
+        <span className="month-endlabel" style={{ fontSize: 10, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{meses[0]}</span>
         <div
           ref={trackRef}
           onClick={handleTrackClick}
-          style={{ flex: 1, position: 'relative', height: 20, display: 'flex', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }}
+          className="month-track"
+          style={{ flex: 1, position: 'relative', height: 20, display: 'flex', alignItems: 'center', cursor: 'pointer', userSelect: 'none', touchAction: 'none' }}
         >
           <div style={{ position: 'absolute', left: 0, right: 0, height: 2, borderRadius: 2, background: 'var(--border)' }} />
           {meses.map((_, i) => (
@@ -93,12 +99,14 @@ export default function MonthSlider({ meses, selected, onSelect, totalMes, activ
             aria-valuemax={meses.length - 1}
             aria-valuenow={idx}
             aria-valuetext={selected}
+            className="month-thumb"
+            aria-label="Mes seleccionado"
             onMouseDown={handleThumbMouseDown}
             onTouchStart={handleThumbTouchStart}
             onKeyDown={handleKeyDown}
             style={{
               position: 'absolute', left: `${pct}%`, transform: 'translateX(-50%)',
-              width: 16, height: 16, borderRadius: '50%',
+              width: 16, height: 16, borderRadius: '50%', touchAction: 'none',
               background: 'var(--card)', border: '2px solid var(--primary)',
               boxShadow: '0 1px 6px rgba(0,0,0,0.4)',
               cursor: 'grab', zIndex: 3, outline: 'none',
@@ -106,7 +114,7 @@ export default function MonthSlider({ meses, selected, onSelect, totalMes, activ
             }}
           />
         </div>
-        <span style={{ fontSize: 10, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{meses[meses.length - 1]}</span>
+        <span className="month-endlabel" style={{ fontSize: 10, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{meses[meses.length - 1]}</span>
       </div>
     </div>
   );

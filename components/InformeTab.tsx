@@ -232,7 +232,7 @@ export default function InformeTab({
   ];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 0, flex: 1, minHeight: 0, overflowY: 'auto', paddingBottom: 24 }}>
+    <div className="informe-root scroll-y" style={{ display: 'flex', flexDirection: 'column', gap: 0, flex: 1, minHeight: 0, paddingBottom: 24 }}>
 
       {/* ── Variación por dimensión ──────────────────────────────────────────── */}
       {DIMS.map(({ key, label }) => {

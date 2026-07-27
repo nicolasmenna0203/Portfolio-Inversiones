@@ -186,9 +186,11 @@ export default function BenchmarksTab({ data }: Props) {
               key={id}
               onClick={() => toggle(id)}
               disabled={!!err}
+              className="pill-touch"
+              aria-pressed={isVisible && !err}
               title={err ? `No se pudo cargar: ${err}` : undefined}
               style={{
-                display: 'flex', alignItems: 'center', gap: 6,
+                display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
                 padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
                 cursor: err ? 'not-allowed' : 'pointer',
                 border: '1px solid',
@@ -222,7 +224,7 @@ export default function BenchmarksTab({ data }: Props) {
 
       {/* ── Gráfico ────────────────────────────────────────────────────────── */}
       {!loading && (
-        <div style={{
+        <div className="bench-chart-card" style={{
           background: 'var(--card)',
           border: '1px solid var(--border)',
           borderRadius: 12,

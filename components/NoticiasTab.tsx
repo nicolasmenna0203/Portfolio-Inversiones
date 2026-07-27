@@ -23,13 +23,15 @@ function Pill({ label, active, onClick }: { label: string; active: boolean; onCl
   return (
     <button
       onClick={onClick}
+      className="pill-touch"
+      aria-pressed={active}
       style={{
         padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
         cursor: 'pointer', border: '1px solid',
         borderColor: active ? 'var(--primary)' : 'var(--border)',
         background: active ? 'var(--primary-dim)' : 'transparent',
         color: active ? 'var(--primary)' : 'var(--muted)',
-        transition: 'all 0.12s',
+        transition: 'all 0.12s', whiteSpace: 'nowrap', flexShrink: 0,
       }}
     >{label}</button>
   );
@@ -37,10 +39,10 @@ function Pill({ label, active, onClick }: { label: string; active: boolean; onCl
 
 function Card({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{
+    <div className="card-scroll scroll-y" style={{
       background: 'var(--card)', border: '1px solid var(--border)',
       borderRadius: 12, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10,
-      flex: 1, minHeight: 0, overflowY: 'auto',
+      flex: 1, minHeight: 0,
     }}>
       {children}
     </div>
@@ -57,11 +59,12 @@ function ListaNoticias({ noticias, mostrarTicker }: { noticias: NoticiaItem[]; m
           target="_blank"
           rel="noopener noreferrer"
           style={{
-            display: 'flex', flexDirection: 'column', gap: 2, textDecoration: 'none',
-            padding: '6px 0', borderBottom: i < noticias.length - 1 ? '1px solid var(--border-subtle)' : 'none',
+            display: 'flex', flexDirection: 'column', gap: 3, textDecoration: 'none',
+            padding: '10px 0', minHeight: 44, justifyContent: 'center',
+            borderBottom: i < noticias.length - 1 ? '1px solid var(--border-subtle)' : 'none',
           }}
         >
-          <span style={{ fontSize: 12.5, color: 'var(--text)', fontWeight: 500 }}>{n.titulo}</span>
+          <span style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500, lineHeight: 1.35 }}>{n.titulo}</span>
           <span style={{ fontSize: 10.5, color: 'var(--muted)', display: 'flex', gap: 8, alignItems: 'center' }}>
             {mostrarTicker && n.ticker && (
               <span style={{ fontWeight: 700, color: 'var(--primary)' }}>{n.ticker}</span>
@@ -116,7 +119,7 @@ export default function NoticiasTab({ data }: Props) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1, minHeight: 0 }}>
 
       {tickersDisponibles.length > 0 && (
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flexShrink: 0 }}>
+        <div className="filtro-tickers" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flexShrink: 0 }}>
           <Pill label="Todos" active={filtroTicker === null} onClick={() => setFiltroTicker(null)} />
           {tickersDisponibles.map((t) => (
             <Pill key={t} label={t} active={filtroTicker === t} onClick={() => setFiltroTicker((prev) => prev === t ? null : t)} />

@@ -246,8 +246,8 @@ const [uploadOpen, setUploadOpen] = useState(false);
               zIndex: 100,
             }}
           />
-          {/* Panel */}
-          <div style={{
+          {/* Panel — drawer lateral en desktop, bottom sheet en mobile (ver globals.css) */}
+          <div className="upload-panel" style={{
             position: 'fixed', top: 0, right: 0, bottom: 0,
             width: 520, maxWidth: '95vw',
             background: 'var(--bg)',
@@ -257,7 +257,7 @@ const [uploadOpen, setUploadOpen] = useState(false);
             boxShadow: '-8px 0 32px rgba(0,0,0,0.3)',
           }}>
             {/* Panel header */}
-            <div style={{
+            <div className="upload-panel-header" style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               padding: '18px 24px',
               borderBottom: '1px solid var(--border)',
@@ -273,16 +273,18 @@ const [uploadOpen, setUploadOpen] = useState(false);
               </div>
               <button
                 onClick={() => setUploadOpen(false)}
+                aria-label="Cerrar"
                 style={{
                   background: 'none', border: '1px solid var(--border)',
                   borderRadius: 8, cursor: 'pointer',
                   color: 'var(--muted)', fontSize: 18, lineHeight: 1,
-                  width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0,
                 }}
               >×</button>
             </div>
             {/* Panel body — scrolleable */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
+            <div className="scroll-y upload-panel-body" style={{ flex: 1, padding: '20px 24px' }}>
               <UploadTenencias />
             </div>
           </div>
@@ -326,8 +328,8 @@ const [uploadOpen, setUploadOpen] = useState(false);
 
         {/* Filtros activos — visibles en todas las pestañas */}
         {hayFiltro && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', paddingBottom: 4 }}>
-            <div style={{ width: 1, height: 20, background: 'var(--border)', flexShrink: 0 }} />
+          <div className="mobile-filtros" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', paddingBottom: 4 }}>
+            <div className="filtros-sep" style={{ width: 1, height: 20, background: 'var(--border)', flexShrink: 0 }} />
             {filtroTipo   && <FiltroPill label={filtroTipo}   onClear={() => setFiltroTipo(null)} />}
             {filtroRiesgo && <FiltroPill label={filtroRiesgo} onClear={() => setFiltroRiesgo(null)} />}
             {filtroMoneda && <FiltroPill label={filtroMoneda} onClear={() => setFiltroMoneda(null)} />}
@@ -343,7 +345,7 @@ const [uploadOpen, setUploadOpen] = useState(false);
 
       {/* ── Tab: Resumen ────────────────────────────────────────────────────── */}
       {tab === 'resumen' && (
-        <section style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1, minHeight: 0 }}>
+        <section className="tab-scroll" style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1, minHeight: 0 }}>
           <div className="kpi-grid">
             <KPICard
               label="Total Cartera"
@@ -384,7 +386,7 @@ const [uploadOpen, setUploadOpen] = useState(false);
             />
           </div>
 
-          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <div className="resumen-chart-wrap" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
             <EvolucionChart data={resumenSeries} tenenciasPorMes={tenenciasPorMes} hideValues={hideValues} moneda={moneda} mepPorMes={mepPorMes} />
           </div>
         </section>
@@ -392,14 +394,15 @@ const [uploadOpen, setUploadOpen] = useState(false);
 
       {/* ── Tab: Tenencias ──────────────────────────────────────────────────── */}
       {tab === 'tenencias' && (
-        <section style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minHeight: 0 }}>
+        <section className="tab-scroll" style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minHeight: 0 }}>
 
           {/* Barra de controles: selector de mes centrado + dimensión + filtros activos */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', flexShrink: 0 }}>
+          <div className="tenencias-controles" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', flexShrink: 0 }}>
 
             {/* Botón Último a la izquierda */}
             {mesesDisponibles.indexOf(mesSel) < mesesDisponibles.length - 1 && (
               <button
+                className="pill-touch"
                 onClick={() => setMesSel(mesesDisponibles[mesesDisponibles.length - 1])}
                 style={{
                   padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
@@ -411,7 +414,7 @@ const [uploadOpen, setUploadOpen] = useState(false);
             )}
 
             {/* MonthSlider centrado */}
-            <div style={{ flex: 1, minWidth: 200 }}>
+            <div className="tenencias-slider" style={{ flex: 1, minWidth: 200 }}>
               <MonthSlider
                 meses={mesesDisponibles}
                 selected={mesSel}
@@ -423,13 +426,14 @@ const [uploadOpen, setUploadOpen] = useState(false);
             </div>
 
             {/* Separador */}
-            <div style={{ width: 1, height: 20, background: 'var(--border)', flexShrink: 0 }} />
+            <div className="tenencias-sep" style={{ width: 1, height: 20, background: 'var(--border)', flexShrink: 0 }} />
 
-            {/* Selector de dimensión unificado */}
-            <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', flexShrink: 0 }}>
+            {/* Selector de dimensión unificado — fila deslizable en mobile */}
+            <div className="dim-selector scroll-x" style={{ display: 'flex', gap: 3, flexWrap: 'wrap', flexShrink: 0 }}>
               {DIMS_TENENCIAS.map((d) => (
                 <button
                   key={d.key}
+                  className="pill-touch"
                   onClick={() => setDimTenencias(d.key)}
                   style={{
                     padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 500,
@@ -437,7 +441,7 @@ const [uploadOpen, setUploadOpen] = useState(false);
                     borderColor: dimTenencias === d.key ? 'var(--primary)' : 'var(--border)',
                     background: dimTenencias === d.key ? 'var(--primary-dim)' : 'transparent',
                     color: dimTenencias === d.key ? 'var(--primary)' : 'var(--muted)',
-                    transition: 'all 0.12s', whiteSpace: 'nowrap',
+                    transition: 'all 0.12s', whiteSpace: 'nowrap', flexShrink: 0,
                   }}
                 >{d.label}</button>
               ))}
@@ -471,7 +475,7 @@ const [uploadOpen, setUploadOpen] = useState(false);
 
       {/* ── Tab: Informe ────────────────────────────────────────────────────── */}
       {tab === 'informe' && (
-        <section style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+        <section className="tab-scroll" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           <InformeTab
             resumenSeries={resumenSeries}
             tenenciasPorMes={tenenciasPorMes}
@@ -484,28 +488,28 @@ const [uploadOpen, setUploadOpen] = useState(false);
 
       {/* ── Tab: Proyecciones ───────────────────────────────────────────────── */}
       {tab === 'proyecciones' && (
-        <section style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+        <section className="tab-scroll" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           <ProyeccionesTab data={data} hideValues={hideValues} />
         </section>
       )}
 
       {/* ── Tab: Benchmarks ───────────────────────────────────────────────────── */}
       {tab === 'benchmarks' && (
-        <section style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+        <section className="tab-scroll" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           <BenchmarksTab data={data} />
         </section>
       )}
 
       {/* ── Tab: Noticias ─────────────────────────────────────────────────────── */}
       {tab === 'noticias' && (
-        <section style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+        <section className="tab-scroll" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           <NoticiasTab data={data} />
         </section>
       )}
 
       {/* ── Tab: Calendario (Eventos) ─────────────────────────────────────────── */}
       {tab === 'calendario' && (
-        <section style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+        <section className="tab-scroll" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           <CalendarioTab data={data} />
         </section>
       )}

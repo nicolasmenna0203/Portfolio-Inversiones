@@ -470,13 +470,13 @@ export default function ProyeccionesTab({ data, hideValues }: Props) {
   const cadaNPuntos = Math.max(1, Math.floor(totalPuntos / 8));
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, flex: 1, minHeight: 0, overflowY: 'auto' }}>
+    <div className="proy-root scroll-y" style={{ display: 'flex', flexDirection: 'column', gap: 16, flex: 1, minHeight: 0 }}>
 
       {/* ── Fila principal: controles + KPIs ──────────────────────────────── */}
       <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'stretch' }}>
 
         {/* Panel de controles */}
-        <div style={{
+        <div className="proy-controles" style={{
           background: 'var(--card)',
           border: '1px solid var(--border)',
           borderRadius: 12,
