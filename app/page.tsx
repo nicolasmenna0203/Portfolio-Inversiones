@@ -1,7 +1,10 @@
 import { fetchDashboardData } from '@/lib/sheets';
 import Dashboard from '@/components/Dashboard';
 
-// Revalidar datos cada 60 segundos
+// Revalidar datos cada 60 segundos. Nota: este cache es por-URL, no por-sesión;
+// como el dashboard es de un solo usuario (auth compartida) no filtra datos
+// entre cuentas, pero dejaría de ser seguro si en algún momento hay más de un
+// usuario con datos propios detrás del mismo login.
 export const revalidate = 60;
 
 export default async function Home() {

@@ -3,8 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { DashboardData, EventoTipo, EventoCalendario, YieldTicker } from '@/types';
 import { useCalendario } from '@/lib/useCalendario';
-import { TIPOS_VALIDOS, TICKERS_INCLUIR, TICKERS_EXCLUIR } from '@/lib/tickersElegibles';
-import { MAPEO_BONOS_ARG } from '@/lib/bonosArg';
+import { tickersDeCartera } from '@/lib/tickersElegibles';
 import { RETENCION_USA, IMPUESTO_CHEQUE, FACTOR_NETO_DIVIDENDO } from '@/lib/retenciones';
 
 interface Props {
@@ -280,46 +279,13 @@ export default function CalendarioTab({ data }: Props) {
   const irHoy = () => { setYear(hoy.getUTCFullYear()); setMesIdx(hoy.getUTCMonth()); };
   const esMesActual = year === hoy.getUTCFullYear() && mesIdx === hoy.getUTCMonth();
 
-  const tickersActivos = useMemo(() => {
+  // Tickers USA elegibles, bonos ARG mapeados y tenencia USD de cada posición
+  // del último mes. Misma regla que usa el job server-side de alertas
+  // semanales (`lib/tickersElegibles.ts`), centralizada para no desalinearse.
+  const { tickersUsa: tickersActivos, tickersArg, tenencias } = useMemo(() => {
     const meses = Object.keys(tenenciasPorMes).sort();
     const ultimoMes = meses[meses.length - 1];
-    const items = tenenciasPorMes[ultimoMes] ?? [];
-    const set = new Set(
-      items
-        .filter((t) => {
-          const ticker = t.ticker.toUpperCase();
-          if (TICKERS_EXCLUIR.has(ticker)) return false;
-          if (TICKERS_INCLUIR.has(ticker)) return true;
-          return TIPOS_VALIDOS.has(t.TIPO?.toUpperCase()) && t.SECTOR_GEO !== 'ARG';
-        })
-        .map((t) => t.ticker.toUpperCase()),
-    );
-    return [...set].sort();
-  }, [tenenciasPorMes]);
-
-  // Bonos/ONs ARG de la cartera que tengan cronograma de pagos mapeado (bonistas).
-  const tickersArg = useMemo(() => {
-    const meses = Object.keys(tenenciasPorMes).sort();
-    const ultimoMes = meses[meses.length - 1];
-    const items = tenenciasPorMes[ultimoMes] ?? [];
-    const set = new Set(
-      items
-        .map((t) => t.ticker.toUpperCase())
-        .filter((ticker) => ticker in MAPEO_BONOS_ARG),
-    );
-    return [...set].sort();
-  }, [tenenciasPorMes]);
-
-  // Valor de mercado (USD) de cada posición del último mes, para estimar el cobro real.
-  const tenencias = useMemo(() => {
-    const meses = Object.keys(tenenciasPorMes).sort();
-    const ultimoMes = meses[meses.length - 1];
-    const items = tenenciasPorMes[ultimoMes] ?? [];
-    const map: Record<string, number> = {};
-    for (const t of items) {
-      if (t.tenencia_usd > 0) map[t.ticker.toUpperCase()] = t.tenencia_usd;
-    }
-    return map;
+    return tickersDeCartera(tenenciasPorMes[ultimoMes] ?? []);
   }, [tenenciasPorMes]);
 
   const { eventos, yields, loadingEventos, errorEventos } = useCalendario(tickersActivos, year, tickersArg, tenencias);

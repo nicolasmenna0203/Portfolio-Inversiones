@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { verificarToken } from '@/lib/session';
 
-const PUBLIC_PATHS = ['/login', '/api/auth/login'];
+// /api/alertas/semanal es pública acá porque la llama un cron externo sin
+// cookie de sesión — se autentica sola con CRON_SECRET (ver su route.ts).
+const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/alertas/semanal'];
 
-export function middleware(req: NextRequest) {
+// La exclusión de _next/static, _next/image y favicon.ico ya está en el
+// `matcher` de abajo (Next ni siquiera invoca este middleware para esas rutas).
+// Se repite acá a propósito, no por descuido: si algún día cambia el matcher,
+// este chequeo interno sigue protegiendo esas rutas igual.
+export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   const isPublic =
@@ -14,7 +21,11 @@ export function middleware(req: NextRequest) {
   if (isPublic) return NextResponse.next();
 
   const session = req.cookies.get('session')?.value;
-  if (session === process.env.SESSION_SECRET) return NextResponse.next();
+  const secret = process.env.SESSION_SECRET;
+
+  if (session && secret && (await verificarToken(session, secret))) {
+    return NextResponse.next();
+  }
 
   const loginUrl = req.nextUrl.clone();
   loginUrl.pathname = '/login';
