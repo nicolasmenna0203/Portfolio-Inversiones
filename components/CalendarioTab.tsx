@@ -1,10 +1,11 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import type { DashboardData, EventoTipo, EventoCalendario } from '@/types';
+import { useEffect, useMemo, useState } from 'react';
+import type { DashboardData, EventoTipo, EventoCalendario, YieldTicker } from '@/types';
 import { useCalendario } from '@/lib/useCalendario';
 import { TIPOS_VALIDOS, TICKERS_INCLUIR, TICKERS_EXCLUIR } from '@/lib/tickersElegibles';
 import { MAPEO_BONOS_ARG } from '@/lib/bonosArg';
+import { RETENCION_USA, IMPUESTO_CHEQUE, FACTOR_NETO_DIVIDENDO } from '@/lib/retenciones';
 
 interface Props {
   data: DashboardData;
@@ -45,6 +46,36 @@ function fmtMonto(monto: number, moneda?: string): string {
   return `≈ ${simbolo} ${monto.toLocaleString('es-AR', { minimumFractionDigits: dec, maximumFractionDigits: dec })}`;
 }
 
+/** Los dividendos se muestran netos de retención; los flujos de bonos ARG, completos. */
+function esDividendo(tipo: EventoTipo): boolean {
+  return tipo === 'dividendo' || tipo === 'dividendo-fut';
+}
+
+/** Explica de dónde sale el monto mostrado, según lleve retención o no. */
+function tooltipMonto(tipo: EventoTipo): string {
+  if (esDividendo(tipo)) {
+    return `Neto estimado a acreditar, según tu tenencia y el precio de mercado actual.\n`
+      + `Ya descontado: ${(RETENCION_USA * 100).toFixed(0)}% de retención de EE.UU. + ${(IMPUESTO_CHEQUE * 100).toFixed(1)}% de débitos y créditos `
+      + `(llega el ${(FACTOR_NETO_DIVIDENDO * 100).toFixed(1)}% del bruto).\n`
+      + `No incluye la comisión del depositario (Comafi, ~1-2%).`;
+  }
+  return 'Cobro estimado según tu tenencia y el precio de mercado actual.\nSin retención de origen: los bonos ARG se acreditan completos.';
+}
+
+/** true cuando el viewport es de celular. Los logos del calendario reciben su
+ *  tamaño por prop (no por CSS), así que hace falta saberlo en JS. */
+function useEsMobile(): boolean {
+  const [esMobile, setEsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 768px)');
+    const sync = () => setEsMobile(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
+  return esMobile;
+}
+
 function Pill({ label, active, color, onClick }: {
   label: string; active: boolean; color?: string; onClick: () => void;
 }) {
@@ -52,13 +83,15 @@ function Pill({ label, active, color, onClick }: {
   return (
     <button
       onClick={onClick}
+      className="pill-touch"
+      aria-pressed={active}
       style={{
         padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
         cursor: 'pointer', border: '1px solid',
         borderColor: active ? c : 'var(--border)',
         background: active ? `${c}22` : 'transparent',
         color: active ? c : 'var(--muted)',
-        transition: 'all 0.12s',
+        transition: 'all 0.12s', whiteSpace: 'nowrap', flexShrink: 0,
       }}
     >{label}</button>
   );
@@ -125,45 +158,100 @@ function tickerConLogo(tipo: EventoTipo): boolean {
 }
 
 function DiaCelda({
-  dia, eventosDia, esHoy,
+  dia, eventosDia, esHoy, logoSize, maxLogos, yieldPorTicker,
 }: {
   dia: number | null;
   eventosDia?: EventoCalendario[];
   esHoy: boolean;
+  logoSize: number;
+  maxLogos: number;
+  yieldPorTicker: Map<string, YieldTicker>;
 }) {
   if (dia === null) {
-    return <div style={{ minHeight: 88, borderRadius: 8 }} />;
+    return <div className="cal-dia-vacio" style={{ minHeight: 88, borderRadius: 8 }} />;
   }
 
+  // Solo los dividendos con monto entran al detalle: son los que tienen yield asociado.
+  const conMonto = (eventosDia ?? []).filter(
+    (e) => esDividendo(e.tipo) && e.montoEstimado != null && e.montoEstimado > 0,
+  );
+
   return (
-    <div style={{
+    <div className="cal-dia" style={{
       minHeight: 88, borderRadius: 8, padding: '6px 6px',
       border: esHoy ? '1px solid var(--primary)' : '1px solid var(--border)',
       background: esHoy ? 'color-mix(in srgb, var(--primary) 10%, var(--card))' : 'var(--card)',
       display: 'flex', flexDirection: 'column', gap: 4,
     }}>
-      <span style={{
+      <span className="cal-dia-num" style={{
         fontSize: 11, fontWeight: esHoy ? 800 : 600,
         color: esHoy ? 'var(--primary)' : 'var(--muted)',
       }}>
         {dia}
       </span>
       {eventosDia && eventosDia.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-          {eventosDia.map((e, i) => {
+        <div className="cal-dia-logos" style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+          {eventosDia.slice(0, maxLogos).map((e, i) => {
             const meta = TIPO_EVENTO_META[e.tipo];
-            const montoTxt = e.montoEstimado != null && e.montoEstimado > 0 ? ` ${fmtMonto(e.montoEstimado, e.monedaMonto)}` : '';
-            const tip = `${e.ticker}: ${meta.label}${e.detalle ? ` (${e.detalle})` : ''}${montoTxt}`;
+            const montoTxt = e.montoEstimado != null && e.montoEstimado > 0
+              ? ` ${fmtMonto(e.montoEstimado, e.monedaMonto)}${esDividendo(e.tipo) ? ' neto' : ''}`
+              : '';
+            const y = yieldPorTicker.get(e.ticker);
+            const yieldTxt = y && esDividendo(e.tipo)
+              ? `\nYield 12m: ${(y.yieldAnual * 100).toFixed(2)}% · ${fmtMonto(y.cobroAnual ?? 0, 'USD')}/año`
+              : '';
+            const tip = `${e.ticker}: ${meta.label}${e.detalle ? ` (${e.detalle})` : ''}${montoTxt}${yieldTxt}`;
+            const dot = Math.max(6, Math.round(logoSize * 0.3));
             return (
-              <div key={i} title={tip} style={{ position: 'relative' }}>
-                <LogoTicker ticker={e.ticker} conLogo={tickerConLogo(e.tipo)} size={30} />
-                <span style={{
-                  position: 'absolute', bottom: -1, right: -1, width: 9, height: 9,
+              <div key={i} title={tip} className="cal-dia-logo" style={{ position: 'relative' }}>
+                <LogoTicker ticker={e.ticker} conLogo={tickerConLogo(e.tipo)} size={logoSize} />
+                <span className="cal-dia-dot" style={{
+                  position: 'absolute', bottom: -1, right: -1, width: dot, height: dot,
                   borderRadius: '50%', background: meta.color, border: '1.5px solid var(--card)',
                 }} />
               </div>
             );
           })}
+          {/* En mobile no entran todos los logos: el resto se cuenta acá y se
+              lee completo en la lista de eventos de abajo. */}
+          {eventosDia.length > maxLogos && (
+            <span style={{
+              fontSize: Math.max(8, Math.round(logoSize * 0.38)), fontWeight: 700,
+              color: 'var(--muted)', alignSelf: 'center', lineHeight: 1,
+            }}>
+              +{eventosDia.length - maxLogos}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Monto y yield del día, bajo los logos. En pantalla chica se ocultan por
+          CSS: la celda no da el ancho y el dato queda en la lista de abajo. */}
+      {conMonto.length > 0 && (
+        <div className="cal-dia-montos" style={{ display: 'flex', flexDirection: 'column', gap: 1, marginTop: 'auto' }}>
+          {conMonto.slice(0, 2).map((e, i) => {
+            const y = yieldPorTicker.get(e.ticker);
+            return (
+              <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 4, lineHeight: 1.25 }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap' }}>
+                  {fmtMonto(e.montoEstimado!, e.monedaMonto)}
+                </span>
+                {y && (
+                  <span
+                    title={`Yield 12m de ${e.ticker}: ${(y.yieldAnual * 100).toFixed(2)}% · ${fmtMonto(y.cobroAnual ?? 0, 'USD')}/año`}
+                    style={{ fontSize: 9, fontWeight: 700, color: TIPO_EVENTO_META.dividendo.color, whiteSpace: 'nowrap' }}
+                  >
+                    {(y.yieldAnual * 100).toFixed(1)}%
+                  </span>
+                )}
+              </div>
+            );
+          })}
+          {conMonto.length > 2 && (
+            <span style={{ fontSize: 9, color: 'var(--muted)', lineHeight: 1.25 }}>
+              +{conMonto.length - 2} más
+            </span>
+          )}
         </div>
       )}
     </div>
@@ -172,6 +260,10 @@ function DiaCelda({
 
 export default function CalendarioTab({ data }: Props) {
   const { tenenciasPorMes } = data;
+
+  const esMobile = useEsMobile();
+  const logoSize = esMobile ? 18 : 30;
+  const maxLogos = esMobile ? 3 : 12;
 
   const hoy = useMemo(() => new Date(), []);
   const [year, setYear] = useState(hoy.getUTCFullYear());
@@ -230,7 +322,19 @@ export default function CalendarioTab({ data }: Props) {
     return map;
   }, [tenenciasPorMes]);
 
-  const { eventos, loadingEventos, errorEventos } = useCalendario(tickersActivos, year, tickersArg, tenencias);
+  const { eventos, yields, loadingEventos, errorEventos } = useCalendario(tickersActivos, year, tickersArg, tenencias);
+
+  // Proyección anual de dividendos: suma del cobro neto de cada posición que paga.
+  const cobroAnualTotal = useMemo(
+    () => yields.reduce((s, y) => s + (y.cobroAnual ?? 0), 0),
+    [yields],
+  );
+
+  // Yield efectivo de la cartera: cuánto rinde el total invertido, no solo lo que paga.
+  const yieldCartera = useMemo(() => {
+    const total = Object.values(tenencias).reduce((s, v) => s + v, 0);
+    return total > 0 ? cobroAnualTotal / total : 0;
+  }, [cobroAnualTotal, tenencias]);
 
   const [filtroTicker, setFiltroTicker] = useState<string | null>(null);
   const [filtroTipos, setFiltroTipos] = useState<EventoTipo[] | null>(null);
@@ -270,6 +374,12 @@ export default function CalendarioTab({ data }: Props) {
     [eventosFiltrados, year, mesIdx],
   );
 
+  // Yield por ticker, para anotarlo en la celda del día que paga.
+  const yieldPorTicker = useMemo(
+    () => new Map(yields.map((y) => [y.ticker, y])),
+    [yields],
+  );
+
   // Total estimado a cobrar en el mes, agrupado por moneda (los balances no suman).
   const totalMesPorMoneda = useMemo(() => {
     const acc: Record<string, number> = {};
@@ -283,22 +393,26 @@ export default function CalendarioTab({ data }: Props) {
   }, [eventosDelMes]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1, minHeight: 0, overflowY: 'auto' }}>
+    <div className="cal-root scroll-y" style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1, minHeight: 0 }}>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <button
             onClick={irMesAnterior}
+            className="cal-nav-btn"
+            aria-label="Mes anterior"
             style={{
               border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)',
               borderRadius: 8, padding: '4px 10px', cursor: 'pointer', fontSize: 13,
             }}
           >‹</button>
-          <p style={{ margin: 0, fontSize: 16, fontWeight: 700, minWidth: 150, textAlign: 'center' }}>
+          <p className="cal-header-mes" style={{ margin: 0, fontSize: 16, fontWeight: 700, minWidth: 150, textAlign: 'center' }}>
             {MESES_LABEL[mesIdx]} {year}
           </p>
           <button
             onClick={irMesSiguiente}
+            className="cal-nav-btn"
+            aria-label="Mes siguiente"
             style={{
               border: '1px solid var(--border)', background: 'transparent', color: 'var(--text)',
               borderRadius: 8, padding: '4px 10px', cursor: 'pointer', fontSize: 13,
@@ -309,7 +423,7 @@ export default function CalendarioTab({ data }: Props) {
           )}
         </div>
 
-        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+        <div className="filtro-tickers" style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
           <Pill label="Todos" active={filtroTipos === null} onClick={() => setFiltroTipos(null)} />
           {FILTROS_TIPO.map((f) => {
             const activo = filtroTipos !== null && f.tipos.every((t) => filtroTipos.includes(t)) && filtroTipos.length === f.tipos.length;
@@ -329,7 +443,7 @@ export default function CalendarioTab({ data }: Props) {
       </div>
 
       {tickersDisponibles.length > 0 && (
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flexShrink: 0 }}>
+        <div className="filtro-tickers" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flexShrink: 0 }}>
           <Pill label="Todos" active={filtroTicker === null} onClick={() => setFiltroTicker(null)} />
           {tickersDisponibles.map((t) => (
             <Pill key={t} label={t} active={filtroTicker === t} onClick={() => setFiltroTicker((prev) => prev === t ? null : t)} />
@@ -344,12 +458,12 @@ export default function CalendarioTab({ data }: Props) {
       ) : (
         <>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
+            <div className="cal-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
               {DIAS_SEMANA.map((d) => (
                 <div key={d} style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textAlign: 'center' }}>{d}</div>
               ))}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
+            <div className="cal-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
               {celdas.map((dia, i) => {
                 const key = dia !== null ? `${year}-${String(mesIdx + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}` : '';
                 return (
@@ -358,6 +472,9 @@ export default function CalendarioTab({ data }: Props) {
                     dia={dia}
                     eventosDia={dia !== null ? eventosPorDia.get(key) : undefined}
                     esHoy={key === hoyKey}
+                    logoSize={logoSize}
+                    maxLogos={maxLogos}
+                    yieldPorTicker={yieldPorTicker}
                   />
                 );
               })}
@@ -371,13 +488,24 @@ export default function CalendarioTab({ data }: Props) {
               </p>
               {Object.keys(totalMesPorMoneda).length > 0 && (
                 <p
-                  title="Total estimado a cobrar este mes (dividendos + renta + amortización) según tu tenencia y precios actuales"
+                  title={`Neto estimado a acreditar este mes según tu tenencia y precios actuales.\n\nDividendos: ya descontada la retención del ${(RETENCION_USA * 100).toFixed(0)}% de EE.UU. (sin tratado de doble imposición con Argentina) y el ${(IMPUESTO_CHEQUE * 100).toFixed(1)}% de débitos y créditos → llega el ${(FACTOR_NETO_DIVIDENDO * 100).toFixed(1)}% del bruto.\nNo incluye la comisión del depositario (Comafi, ~1-2%), así que el neto real puede ser algo menor.\n\nRenta y amortización de bonos ARG: sin retención, al 100%.`}
                   style={{ margin: 0, fontSize: 12, fontWeight: 700, color: 'var(--text)' }}
                 >
-                  A cobrar:{' '}
+                  A cobrar (neto):{' '}
                   {Object.entries(totalMesPorMoneda)
                     .map(([moneda, total]) => fmtMonto(total, moneda))
                     .join('  ·  ')}
+                  <span style={{ fontWeight: 400, color: 'var(--muted)', marginLeft: 6 }}>
+                    · dividendos con {(RETENCION_USA * 100).toFixed(0)}% de retención descontado
+                  </span>
+                  {cobroAnualTotal > 0 && (
+                    <span
+                      title={'Proyección anual de dividendos: tenencia actual × yield de los últimos 12 meses, ya neta de retenciones.\nAsume que se repiten igual el año próximo — no son pagos confirmados.'}
+                      style={{ fontWeight: 400, color: 'var(--muted)', marginLeft: 6 }}
+                    >
+                      · {fmtMonto(cobroAnualTotal, 'USD')}/año ({(yieldCartera * 100).toFixed(2)}% de la cartera)
+                    </span>
+                  )}
                 </p>
               )}
             </div>
@@ -388,18 +516,34 @@ export default function CalendarioTab({ data }: Props) {
                 {eventosDelMes.map((e, i) => {
                   const meta = TIPO_EVENTO_META[e.tipo];
                   return (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, padding: '4px 0' }}>
+                    <div key={i} className="cal-evento-fila" style={{
+                      display: 'flex', alignItems: 'center', gap: 10, fontSize: 12,
+                      padding: '6px 0', borderBottom: '1px solid var(--border-subtle)',
+                    }}>
                       <LogoTicker ticker={e.ticker} conLogo={tickerConLogo(e.tipo)} size={20} />
                       <span style={{ color: 'var(--muted)', minWidth: 80, flexShrink: 0 }}>{fmtFechaEvento(e.fecha)}</span>
                       <span style={{ fontWeight: 700, color: 'var(--text)', minWidth: 56 }}>{e.ticker}</span>
                       <span style={{
                         fontSize: 10, fontWeight: 700, color: meta.color, background: `${meta.color}22`,
-                        padding: '2px 8px', borderRadius: 10,
+                        padding: '2px 8px', borderRadius: 10, whiteSpace: 'nowrap',
                       }}>{meta.label}</span>
                       {e.detalle && <span style={{ color: 'var(--muted)' }}>{e.detalle}</span>}
+                      {esDividendo(e.tipo) && yieldPorTicker.has(e.ticker) && (
+                        <span
+                          title={`Yield de los últimos 12 meses · ${fmtMonto(yieldPorTicker.get(e.ticker)!.cobroAnual ?? 0, 'USD')}/año`}
+                          style={{
+                            fontSize: 10, fontWeight: 700, color: TIPO_EVENTO_META.dividendo.color,
+                            border: `1px solid ${TIPO_EVENTO_META.dividendo.color}55`,
+                            padding: '1px 6px', borderRadius: 10, whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {(yieldPorTicker.get(e.ticker)!.yieldAnual * 100).toFixed(2)}%
+                        </span>
+                      )}
                       {e.montoEstimado != null && e.montoEstimado > 0 && (
                         <span
-                          title="Cobro estimado según tu tenencia y el precio de mercado actual"
+                          className="cal-evento-monto"
+                          title={tooltipMonto(e.tipo)}
                           style={{ marginLeft: 'auto', fontWeight: 700, color: meta.color, whiteSpace: 'nowrap' }}
                         >
                           {fmtMonto(e.montoEstimado, e.monedaMonto)}

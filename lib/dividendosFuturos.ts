@@ -1,4 +1,5 @@
 import type { EventoCalendario } from '@/types';
+import { netoDividendo } from './retenciones';
 
 // Nasdaq expone un calendario de dividendos confirmados por día, sin auth.
 // Requiere User-Agent de browser. Las empresas confirman el próximo dividendo
@@ -80,18 +81,18 @@ export async function fetchDividendosFuturos(
       if (vistos.has(key)) continue;
       vistos.add(key);
 
-      // cobro ≈ (tenencia_usd / precio_acción) × dividendo_por_acción
+      // cobro neto ≈ (tenencia_usd / precio_acción) × dividendo_por_acción, menos retenciones
       const tenenciaUsd = tenencias[sym];
       const precio = precios[sym];
       const montoEstimado = tenenciaUsd && precio && r.dividend_Rate
-        ? (tenenciaUsd / precio) * r.dividend_Rate
+        ? netoDividendo((tenenciaUsd / precio) * r.dividend_Rate)
         : undefined;
 
       eventos.push({
         ticker: sym,
         tipo: 'dividendo-fut',
         fecha: pagoIso,
-        detalle: r.dividend_Rate ? `${r.dividend_Rate} USD/acción (confirmado)` : 'Confirmado',
+        detalle: 'Confirmado',
         ...(montoEstimado != null ? { montoEstimado, monedaMonto: 'USD' } : {}),
       });
     }

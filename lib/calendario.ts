@@ -1,8 +1,9 @@
-import type { EventoCalendario, CalendarioResponse } from '@/types';
+import type { EventoCalendario, CalendarioResponse, YieldTicker } from '@/types';
 import { fetchBonosArg } from './bonosArg';
 import { fetchDividendosFuturos } from './dividendosFuturos';
 import { fetchEarningsUsa } from './yahooEarnings';
-import { preciosAcciones, preciosBonos } from './precios';
+import { datosAcciones, preciosBonos } from './precios';
+import { netoDividendo } from './retenciones';
 
 /** Dividendos ya pagados (histórico real de Yahoo Finance chart). */
 async function fetchDividendos(
@@ -29,13 +30,16 @@ async function fetchDividendos(
   return Object.values(dividends)
     .filter((d) => d.date >= desdeTs && d.date <= hastaTs)
     .map((d) => {
-      // cobro ≈ (tenencia_usd / precio_acción) × dividendo_por_acción
-      const montoEstimado = tenenciaUsd && precio ? (tenenciaUsd / precio) * d.amount : undefined;
+      // cobro neto ≈ (tenencia_usd / precio_acción) × dividendo_por_acción, menos retenciones
+      const montoEstimado = tenenciaUsd && precio
+        ? netoDividendo((tenenciaUsd / precio) * d.amount)
+        : undefined;
       return {
         ticker,
         tipo: 'dividendo' as const,
         fecha: new Date(d.date * 1000).toISOString().slice(0, 10),
-        detalle: `${d.amount} USD/acción`,
+        // Sin detalle: el dividendo por acción no aporta al lector (la cartera son
+        // CEDEARs, no acciones). Lo que importa es el monto neto y el yield.
         ...(montoEstimado != null ? { montoEstimado, monedaMonto: 'USD' } : {}),
       };
     });
@@ -49,10 +53,13 @@ export async function fetchCalendarioFinanciero(
   tenencias: Record<string, number> = {},
 ): Promise<CalendarioResponse> {
   // Precios de mercado para estimar unidades a partir del valor de cada posición.
-  const [pxAcciones, pxBonos] = await Promise.all([
-    preciosAcciones(tickersUsa),
+  // De acciones/ETFs se trae además el yield trailing 12m (sale de la misma llamada).
+  const [datosUsa, pxBonos] = await Promise.all([
+    datosAcciones(tickersUsa),
     preciosBonos(tickersArg),
   ]);
+  const pxAcciones: Record<string, number> = {};
+  for (const [t, d] of Object.entries(datosUsa)) pxAcciones[t] = d.px;
 
   // Acciones/ETF USA: dividendos históricos (Yahoo chart) + futuros confirmados (Nasdaq) + balances (Yahoo calendarEvents).
   const tareas: Promise<EventoCalendario[]>[] = tickersUsa.map((t) =>
@@ -78,5 +85,22 @@ export async function fetchCalendarioFinanciero(
 
   eventos.sort((a, b) => a.fecha.localeCompare(b.fecha));
 
-  return { eventos, errores, generatedAt: Date.now() };
+  // Yield informativo de las posiciones que pagan dividendos, con el cobro anual
+  // neto proyectado. No alimenta ningún evento del calendario: es solo un dato.
+  // El yield se expone BRUTO, como lo publica el emisor y como aparece en
+  // cualquier screener — a diferencia de los montos, que van netos de retención.
+  const yields: YieldTicker[] = Object.entries(datosUsa)
+    .filter(([, d]) => d.divAnual > 0)
+    .map(([ticker, d]) => {
+      const tenenciaUsd = tenencias[ticker];
+      return {
+        ticker,
+        yieldAnual: d.yieldAnual,
+        pagos: d.pagos,
+        ...(tenenciaUsd ? { cobroAnual: netoDividendo(tenenciaUsd * d.yieldAnual) } : {}),
+      };
+    })
+    .sort((a, b) => b.yieldAnual - a.yieldAnual);
+
+  return { eventos, yields, errores, generatedAt: Date.now() };
 }

@@ -126,8 +126,20 @@ export interface EventoCalendario {
   monedaMonto?: string;   // moneda del montoEstimado (ej. "USD", "ARS")
 }
 
+/** Dividend yield trailing 12 meses de una posición, para mostrar como dato. */
+export interface YieldTicker {
+  ticker: string;
+  /** Yield bruto que publica el emisor, sin retenciones (0.0701 = 7.01%).
+   *  Deliberadamente inconsistente con `cobroAnual`, que sí va neto: el yield
+   *  se muestra como en cualquier screener para poder compararlo. */
+  yieldAnual: number;
+  pagos: number;        // cantidad de pagos en 12m
+  cobroAnual?: number;  // neto estimado a cobrar al año según tenencia (USD)
+}
+
 export interface CalendarioResponse {
   eventos: EventoCalendario[];
+  yields: YieldTicker[];
   errores: string[];
   generatedAt: number;
 }

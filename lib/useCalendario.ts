@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { NoticiaItem, EventoCalendario } from '@/types';
+import type { NoticiaItem, EventoCalendario, YieldTicker } from '@/types';
 
 interface UseCalendarioResult {
   noticias: NoticiaItem[];
   eventos: EventoCalendario[];
+  yields: YieldTicker[];
   loadingNoticias: boolean;
   loadingEventos: boolean;
   errorNoticias: string | null;
@@ -24,6 +25,7 @@ export function useCalendario(
   const [errorNoticias, setErrorNoticias] = useState<string | null>(null);
 
   const [eventos, setEventos] = useState<EventoCalendario[]>([]);
+  const [yields, setYields] = useState<YieldTicker[]>([]);
   const [loadingEventos, setLoadingEventos] = useState(true);
   const [errorEventos, setErrorEventos] = useState<string | null>(null);
 
@@ -63,11 +65,12 @@ export function useCalendario(
       .then((json) => {
         if (json.error) throw new Error(json.error);
         setEventos(json.eventos ?? []);
+        setYields(json.yields ?? []);
       })
       .catch((e) => setErrorEventos(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoadingEventos(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tickersKey, tickersArgKey, tenenciasKey, year]);
 
-  return { noticias, eventos, loadingNoticias, loadingEventos, errorNoticias, errorEventos };
+  return { noticias, eventos, yields, loadingNoticias, loadingEventos, errorNoticias, errorEventos };
 }

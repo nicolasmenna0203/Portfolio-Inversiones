@@ -7,21 +7,43 @@ const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0 Safari/537.36
 
 // ── Acciones/ETF USA: precio por acción (Yahoo chart) ───────────────────────
 
-const cachePrecioAccion = new Map<string, { px: number; ts: number }>();
+/** Precio spot + dividend yield trailing 12 meses, derivados de la misma llamada. */
+export interface DatosAccion {
+  px: number;
+  /** Dividendos por acción sumados en los últimos 12 meses (USD). 0 si no paga. */
+  divAnual: number;
+  /** divAnual / px, en tanto por uno (0.0093 = 0.93%). */
+  yieldAnual: number;
+  /** Cantidad de pagos en los últimos 12 meses; permite inferir la frecuencia. */
+  pagos: number;
+}
+
+const cachePrecioAccion = new Map<string, { datos: DatosAccion; ts: number }>();
 const CACHE_MS = 60 * 60 * 1000; // 1 hora
 
-async function fetchPrecioAccion(ticker: string): Promise<number | null> {
+// El yield se deriva del historial de dividendos del chart en vez de pedir
+// quoteSummary: ese endpoint devuelve 401 sin cookie+crumb, y el chart ya se
+// consulta igual para el precio, así que el yield sale sin request extra.
+async function fetchDatosAccion(ticker: string): Promise<DatosAccion | null> {
   const hit = cachePrecioAccion.get(ticker);
-  if (hit && Date.now() - hit.ts < CACHE_MS) return hit.px;
+  if (hit && Date.now() - hit.ts < CACHE_MS) return hit.datos;
   try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=1d&interval=1d`;
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=1y&interval=3mo&events=div`;
     const res = await fetch(url, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(8000) });
     if (!res.ok) return null;
     const json = await res.json();
-    const px: number | undefined = json?.chart?.result?.[0]?.meta?.regularMarketPrice;
+    const result = json?.chart?.result?.[0];
+    const px: number | undefined = result?.meta?.regularMarketPrice;
     if (typeof px !== 'number' || px <= 0) return null;
-    cachePrecioAccion.set(ticker, { px, ts: Date.now() });
-    return px;
+
+    const dividends: Record<string, { amount: number; date: number }> = result?.events?.dividends ?? {};
+    const desde = Date.now() / 1000 - 365 * 86_400;
+    const ultimos = Object.values(dividends).filter((d) => d.date >= desde);
+    const divAnual = ultimos.reduce((s, d) => s + d.amount, 0);
+
+    const datos: DatosAccion = { px, divAnual, yieldAnual: divAnual / px, pagos: ultimos.length };
+    cachePrecioAccion.set(ticker, { datos, ts: Date.now() });
+    return datos;
   } catch {
     return null;
   }
@@ -29,9 +51,19 @@ async function fetchPrecioAccion(ticker: string): Promise<number | null> {
 
 /** Mapa ticker USA → precio por acción (USD). */
 export async function preciosAcciones(tickers: string[]): Promise<Record<string, number>> {
+  const datos = await datosAcciones(tickers);
   const out: Record<string, number> = {};
-  const results = await Promise.all(tickers.map(async (t) => [t.toUpperCase(), await fetchPrecioAccion(t)] as const));
-  for (const [t, px] of results) if (px != null) out[t] = px;
+  for (const [t, d] of Object.entries(datos)) out[t] = d.px;
+  return out;
+}
+
+/** Mapa ticker USA → precio, dividendo anual y yield trailing 12m. */
+export async function datosAcciones(tickers: string[]): Promise<Record<string, DatosAccion>> {
+  const out: Record<string, DatosAccion> = {};
+  const results = await Promise.all(
+    tickers.map(async (t) => [t.toUpperCase(), await fetchDatosAccion(t)] as const),
+  );
+  for (const [t, d] of results) if (d != null) out[t] = d;
   return out;
 }
 
