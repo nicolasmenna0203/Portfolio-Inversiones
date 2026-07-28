@@ -5,10 +5,11 @@ import { verificarToken } from '@/lib/session';
 // cookie de sesión — se autentica sola con CRON_SECRET (ver su route.ts).
 const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/alertas/semanal'];
 
-// La exclusión de _next/static, _next/image, favicon.ico e icon.svg ya está
-// en el `matcher` de abajo (Next ni siquiera invoca este middleware para esas
-// rutas). Se repite acá a propósito, no por descuido: si algún día cambia el
-// matcher, este chequeo interno sigue protegiendo esas rutas igual.
+// La exclusión de _next/static, _next/image, favicon.ico, icon.svg y
+// apple-icon.png ya está en el `matcher` de abajo (Next ni siquiera invoca
+// este middleware para esas rutas). Se repite acá a propósito, no por
+// descuido: si algún día cambia el matcher, este chequeo interno sigue
+// protegiendo esas rutas igual.
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
@@ -17,7 +18,8 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith('/_next/static') ||
     pathname.startsWith('/_next/image') ||
     pathname === '/favicon.ico' ||
-    pathname === '/icon.svg';
+    pathname === '/icon.svg' ||
+    pathname === '/apple-icon.png';
 
   if (isPublic) return NextResponse.next();
 
@@ -34,5 +36,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|icon.svg).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|icon.svg|apple-icon.png).*)'],
 };
