@@ -184,7 +184,7 @@ const [uploadOpen, setUploadOpen] = useState(false);
           <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--primary)', marginBottom: 4 }}>
             Portfolio · Finanzas Personales
           </p>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.04em', lineHeight: 1, margin: 0 }}>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 600, color: 'var(--text)', letterSpacing: '-0.01em', lineHeight: 1, margin: 0 }}>
             Investment Dashboard
           </h1>
         </div>

@@ -10,6 +10,7 @@ import { fmtUSD } from '@/lib/parser';
 import {
   RIESGO_LABEL, RENTA_LABEL, GEO_LABEL, MONEDA_LABEL,
   PALETA_TIPO, RIESGO_COLOR, RENTA_COLOR, GEO_COLOR, MONEDA_COLOR,
+  colorPorCategoria,
 } from '@/lib/constants';
 
 interface Props {
@@ -129,12 +130,12 @@ const DIMS_CONFIG: { key: DimObj; label: string }[] = [
 
 // Misma lógica de color que InformeTab / TreemapChart
 function colorParaCat(dim: DimObj, cat: string): string {
-  if (dim === 'TIPO')       return PALETA_TIPO[cat]   ?? '#aaaaaa';
-  if (dim === 'RIESGO')     return RIESGO_COLOR[cat]  ?? '#aaaaaa';
-  if (dim === 'MONEDA')     return MONEDA_COLOR[cat]  ?? '#aaaaaa';
-  if (dim === 'RENTA')      return RENTA_COLOR[cat]   ?? '#aaaaaa';
-  if (dim === 'SECTOR_GEO') return GEO_COLOR[cat]     ?? '#aaaaaa';
-  return '#aaaaaa';
+  if (dim === 'TIPO')       return PALETA_TIPO[cat]   ?? colorPorCategoria(cat);
+  if (dim === 'RIESGO')     return RIESGO_COLOR[cat]  ?? colorPorCategoria(cat);
+  if (dim === 'MONEDA')     return MONEDA_COLOR[cat]  ?? colorPorCategoria(cat);
+  if (dim === 'RENTA')      return RENTA_COLOR[cat]   ?? colorPorCategoria(cat);
+  if (dim === 'SECTOR_GEO') return GEO_COLOR[cat]     ?? colorPorCategoria(cat);
+  return colorPorCategoria(cat);
 }
 
 // Misma lógica de resolución de etiqueta que InformeTab (getLabel)
@@ -599,7 +600,7 @@ export default function ProyeccionesTab({ data, hideValues }: Props) {
           </p>
           <div style={{ display: 'flex', gap: 14, fontSize: 11, color: 'var(--muted)' }}>
             <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: 'var(--primary)', marginRight: 5 }} />Cartera real</span>
-            <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#00cc96', marginRight: 5 }} />Proyección</span>
+            <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#6a9bab', marginRight: 5 }} />Proyección</span>
           </div>
         </div>
 
@@ -638,10 +639,10 @@ export default function ProyeccionesTab({ data, hideValues }: Props) {
               type="monotone"
               dataKey="proyectado"
               name="Proyección"
-              stroke="#00cc96"
+              stroke="#6a9bab"
               strokeWidth={2}
               strokeDasharray="5 4"
-              fill="#00cc9618"
+              fill="#6a9bab18"
               dot={false}
               connectNulls={false}
             />

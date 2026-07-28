@@ -52,10 +52,11 @@ export default function KPICard({ label, value, sub, subColor, accentColor = 'va
         <p
           className="kpi-value"
           style={{
+            fontFamily: 'var(--font-display)',
             fontSize: 22,
-            fontWeight: 700,
+            fontWeight: 600,
             color: 'var(--text)',
-            letterSpacing: '-0.03em',
+            letterSpacing: '-0.01em',
             lineHeight: 1.1,
             overflow: 'hidden',
             textOverflow: 'ellipsis',

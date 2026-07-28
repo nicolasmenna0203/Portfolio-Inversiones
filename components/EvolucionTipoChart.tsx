@@ -13,7 +13,7 @@ import {
   ReferenceLine,
 } from 'recharts';
 import type { TenenciaActual } from '@/types';
-import { PALETA_TIPO, RIESGO_COLOR, RIESGO_LABEL, RENTA_LABEL, GEO_LABEL, MONEDA_LABEL, MONEDA_COLOR, RENTA_COLOR, GEO_COLOR } from '@/lib/constants';
+import { PALETA_TIPO, RIESGO_COLOR, RIESGO_LABEL, RENTA_LABEL, GEO_LABEL, MONEDA_LABEL, MONEDA_COLOR, RENTA_COLOR, GEO_COLOR, colorPorCategoria } from '@/lib/constants';
 import { fmtUSD } from '@/lib/parser';
 
 interface Props {
@@ -24,11 +24,6 @@ interface Props {
   onMesClick?: (fecha: string) => void;
   hideValues?: boolean;
 }
-
-const DEFAULT_COLORS = [
-  '#00d4c2', '#3b82f6', '#a78bfa', '#fb923c',
-  '#f43f5e', '#22d3ee', '#34d399', '#f472b6', '#94a3b8',
-];
 
 const DIMS = [
   { key: 'TIPO',       label: 'Tipo de Activo'      },
@@ -51,13 +46,13 @@ function getGroupLabel(r: TenenciaActual, dim: Dim): string {
   }
 }
 
-function getColor(group: string, dim: Dim, idx: number): string {
-  if (dim === 'TIPO')       return PALETA_TIPO[group]   ?? DEFAULT_COLORS[idx % DEFAULT_COLORS.length];
-  if (dim === 'RIESGO')     return RIESGO_COLOR[group]  ?? DEFAULT_COLORS[idx % DEFAULT_COLORS.length];
-  if (dim === 'MONEDA')     return MONEDA_COLOR[group]  ?? DEFAULT_COLORS[idx % DEFAULT_COLORS.length];
-  if (dim === 'RENTA')      return RENTA_COLOR[group]   ?? DEFAULT_COLORS[idx % DEFAULT_COLORS.length];
-  if (dim === 'SECTOR_GEO') return GEO_COLOR[group]     ?? DEFAULT_COLORS[idx % DEFAULT_COLORS.length];
-  return DEFAULT_COLORS[idx % DEFAULT_COLORS.length];
+function getColor(group: string, dim: Dim): string {
+  if (dim === 'TIPO')       return PALETA_TIPO[group]   ?? colorPorCategoria(group);
+  if (dim === 'RIESGO')     return RIESGO_COLOR[group]  ?? colorPorCategoria(group);
+  if (dim === 'MONEDA')     return MONEDA_COLOR[group]  ?? colorPorCategoria(group);
+  if (dim === 'RENTA')      return RENTA_COLOR[group]   ?? colorPorCategoria(group);
+  if (dim === 'SECTOR_GEO') return GEO_COLOR[group]     ?? colorPorCategoria(group);
+  return colorPorCategoria(group);
 }
 
 function buildData(
@@ -225,10 +220,10 @@ export default function EvolucionTipoChart({ tenenciasPorMes, mesesDisponibles, 
           style={{ cursor: onMesClick ? 'pointer' : 'default' }}
         >
           <defs>
-            {groups.map((g, i) => (
+            {groups.map((g) => (
               <linearGradient key={g} id={`gradG-${g}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%"  stopColor={getColor(g, dim, i)} stopOpacity={0.45} />
-                <stop offset="95%" stopColor={getColor(g, dim, i)} stopOpacity={0.05} />
+                <stop offset="5%"  stopColor={getColor(g, dim)} stopOpacity={0.45} />
+                <stop offset="95%" stopColor={getColor(g, dim)} stopOpacity={0.05} />
               </linearGradient>
             ))}
           </defs>
@@ -263,14 +258,14 @@ export default function EvolucionTipoChart({ tenenciasPorMes, mesesDisponibles, 
             iconSize={7}
             wrapperStyle={{ color: 'var(--text-sec)', fontSize: 11, paddingTop: 10 }}
           />
-          {groups.map((g, i) => (
+          {groups.map((g) => (
             <Area
               key={g}
               type="monotone"
               dataKey={g}
               name={g}
               stackId="1"
-              stroke={getColor(g, dim, i)}
+              stroke={getColor(g, dim)}
               strokeWidth={1.5}
               fill={`url(#gradG-${g})`}
               dot={false}

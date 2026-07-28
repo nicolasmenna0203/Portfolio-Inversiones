@@ -1,10 +1,18 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter } from 'next/font/google';
+import { Public_Sans, Spectral } from 'next/font/google';
 import './globals.css';
 
-const inter = Inter({
+const publicSans = Public_Sans({
   subsets: ['latin'],
-  variable: '--font-inter',
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-sans',
+  display: 'swap',
+});
+
+const spectral = Spectral({
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  variable: '--font-serif',
   display: 'swap',
 });
 
@@ -27,14 +35,14 @@ export const viewport: Viewport = {
   maximumScale: 5,
   viewportFit: 'cover',
   themeColor: [
-    { media: '(prefers-color-scheme: dark)',  color: '#080c10' },
-    { media: '(prefers-color-scheme: light)', color: '#f4f6f9' },
+    { media: '(prefers-color-scheme: dark)',  color: '#211d17' },
+    { media: '(prefers-color-scheme: light)', color: '#f7f4ec' },
   ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es" className={inter.variable}>
+    <html lang="es" className={`${publicSans.variable} ${spectral.variable}`}>
       <body className="min-h-screen antialiased">{children}</body>
     </html>
   );

@@ -15,17 +15,18 @@ interface Props {
 type SeriesId = 'cartera' | BenchmarkId;
 
 // Colores asignados por lo que cada serie representa, no arbitrarios:
-// verde-agua de marca para la cartera propia, azul para el mercado USD (S&P500),
-// naranja oficial de Bitcoin, dorado para oro, celeste (bandera ARG) para el MEP,
-// rojo para inflación (costo/alerta a superar). Validado con el validador de
-// paletas del skill dataviz: separación CVD ΔE 19.6, contraste ≥3:1 en dark.
+// dorado de marca para la cartera propia, verde salvia para el mercado USD
+// (S&P 500), terracota para inflación (costo/alerta a superar), lavanda para
+// el MEP, naranja para Bitcoin, ámbar más claro para oro. Las seis se eligieron
+// para quedar distinguibles entre sí (nada de dos dorados ni dos azules casi
+// iguales compitiendo en el mismo gráfico).
 const SERIES_META: Record<SeriesId, { label: string; color: string }> = {
-  cartera:   { label: 'Mi Cartera',              color: '#00d4c2' },
-  sp500:     { label: 'S&P 500',                 color: '#4a7fd6' },
-  inflacion: { label: 'Inflación (IPC INDEC)',   color: '#ef553b' },
-  mep:       { label: 'Dólar MEP',               color: '#5fc9e8' },
-  btc:       { label: 'Bitcoin',                 color: '#f7931a' },
-  oro:       { label: 'Oro',                     color: '#d4b95e' },
+  cartera:   { label: 'Mi Cartera',              color: '#cfab6e' },
+  sp500:     { label: 'S&P 500',                 color: '#5fb896' },
+  inflacion: { label: 'Inflación (IPC INDEC)',   color: '#c15c4a' },
+  mep:       { label: 'Dólar MEP',               color: '#8d7fc7' },
+  btc:       { label: 'Bitcoin',                 color: '#d9824e' },
+  oro:       { label: 'Oro',                     color: '#e8cf8a' },
 };
 
 const SERIES_ORDER: SeriesId[] = ['cartera', 'sp500', 'inflacion', 'mep', 'btc', 'oro'];

@@ -6,6 +6,7 @@ import { fmtUSD, fmtPct } from '@/lib/parser';
 import {
   PALETA_TIPO, RIESGO_COLOR, RIESGO_LABEL, MONEDA_COLOR,
   RENTA_COLOR, GEO_COLOR, MONEDA_LABEL, RENTA_LABEL, GEO_LABEL,
+  colorPorCategoria,
 } from '@/lib/constants';
 import {
   Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -70,12 +71,12 @@ function getLabel(dim: DimKey, key: string): string {
 }
 
 function getColor(dim: DimKey, key: string): string {
-  if (dim === 'TIPO')   return PALETA_TIPO[key] ?? '#aaa';
-  if (dim === 'RIESGO') return RIESGO_COLOR[RIESGO_LABEL[Number(key)] ?? key] ?? '#aaa';
-  if (dim === 'MONEDA') return MONEDA_COLOR[key] ?? '#aaa';
-  if (dim === 'RENTA')  return RENTA_COLOR[key]  ?? '#aaa';
-  if (dim === 'SECTOR_GEO') return GEO_COLOR[key] ?? '#aaa';
-  return '#aaa';
+  if (dim === 'TIPO')   return PALETA_TIPO[key] ?? colorPorCategoria(key);
+  if (dim === 'RIESGO') return RIESGO_COLOR[RIESGO_LABEL[Number(key)] ?? key] ?? colorPorCategoria(key);
+  if (dim === 'MONEDA') return MONEDA_COLOR[key] ?? colorPorCategoria(key);
+  if (dim === 'RENTA')  return RENTA_COLOR[key]  ?? colorPorCategoria(key);
+  if (dim === 'SECTOR_GEO') return GEO_COLOR[key] ?? colorPorCategoria(key);
+  return colorPorCategoria(key);
 }
 
 function calcTotalDim(items: TenenciaActual[], dim: DimKey): Record<string, number> {

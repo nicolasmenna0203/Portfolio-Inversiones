@@ -11,11 +11,11 @@ interface Props {
 }
 
 const TIPO_EVENTO_META: Record<EventoTipo, { label: string; color: string }> = {
-  dividendo:      { label: 'Dividendo',        color: '#19d3f3' },
-  'dividendo-fut':{ label: 'Div. confirmado',  color: '#00b3e6' },
-  earnings:       { label: 'Balance',          color: '#ef553b' },
-  renta:          { label: 'Renta',            color: '#00cc96' },
-  amortizacion:   { label: 'Amortización',     color: '#ffa15a' },
+  dividendo:      { label: 'Dividendo',        color: '#6a9bab' },
+  'dividendo-fut':{ label: 'Div. confirmado',  color: '#7fb0c2' },
+  earnings:       { label: 'Balance',          color: '#c15c4a' },
+  renta:          { label: 'Renta',            color: '#5fb896' },
+  amortizacion:   { label: 'Amortización',     color: '#cfab6e' },
 };
 
 // Tipos agrupados para los filtros (dividendo histórico + futuro se filtran juntos).

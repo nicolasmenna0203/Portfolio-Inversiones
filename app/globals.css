@@ -1,53 +1,62 @@
 @import "tailwindcss";
 
-/* ── Dark theme (default) ───────────────────────────────────── */
+/* ── Dark theme (default) — Prestige ───────────────────────────
+   Paleta cálida oscura con acento dorado. Los tokens semánticos
+   (--up/--down) se mantienen independientes del acento de marca. */
 :root {
-  --bg:            #080c10;
-  --surface:       #0d1117;
-  --card:          #111820;
-  --card-alt:      #141c26;
-  --border:        #1e2a36;
-  --border-subtle: #162030;
+  --bg:            #211d17;
+  --surface:       #241f19;
+  --card:          #2c2620;
+  --card-alt:      #362f26;
+  --border:        #4a4133;
+  --border-subtle: #3a332a;
 
-  --primary:       #00d4c2;
-  --primary-dim:   rgba(0, 212, 194, 0.12);
-  --accent:        #3b82f6;
+  --primary:       #cfab6e;
+  --primary-dim:   rgba(207, 171, 110, 0.14);
+  --accent:        #cfab6e;
 
-  --text:          #e8edf2;
-  --text-sec:      #94a3b8;
-  --muted:         #64748b;
+  --text:          #ece5d8;
+  --text-sec:      #a89b87;
+  --muted:         #8a7d6a;
 
-  --up:            #22d3a0;
-  --down:          #f43f5e;
+  --up:            #5fb896;
+  --down:          #d9705a;
 
-  --chip-bg:       #1a2535;
-  --chip-hover:    #1e2d40;
-  --chip-active-text: #000;
+  --chip-bg:       #362f26;
+  --chip-hover:    #423a2e;
+  --chip-active-text: #211d17;
+
+  --track:         #423a2e;
+
+  --font-body:     var(--font-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display:  var(--font-serif), Georgia, serif;
 }
 
-/* ── Light theme ────────────────────────────────────────────── */
+/* ── Light theme — Prestige ─────────────────────────────────── */
 [data-theme="light"] {
-  --bg:            #f4f6f9;
-  --surface:       #ffffff;
+  --bg:            #f7f4ec;
+  --surface:       #f7f4ec;
   --card:          #ffffff;
-  --card-alt:      #f8fafc;
-  --border:        #e2e8f0;
-  --border-subtle: #edf2f7;
+  --card-alt:      #eee7d7;
+  --border:        #ddd3ba;
+  --border-subtle: #e6dfcd;
 
-  --primary:       #0099a8;
-  --primary-dim:   rgba(0, 153, 168, 0.1);
-  --accent:        #2563eb;
+  --primary:       #9a7038;
+  --primary-dim:   rgba(154, 112, 56, 0.1);
+  --accent:        #9a7038;
 
-  --text:          #0f172a;
-  --text-sec:      #475569;
-  --muted:         #94a3b8;
+  --text:          #322c22;
+  --text-sec:      #675e4d;
+  --muted:         #8a7d6a;
 
-  --up:            #059669;
-  --down:          #dc2626;
+  --up:            #3f8f6f;
+  --down:          #b8503b;
 
-  --chip-bg:       #f1f5f9;
-  --chip-hover:    #e2e8f0;
-  --chip-active-text: #fff;
+  --chip-bg:       #eee7d7;
+  --chip-hover:    #e4dac2;
+  --chip-active-text: #fdfbf5;
+
+  --track:         #e4dac2;
 }
 
 * { box-sizing: border-box; }
@@ -60,7 +69,7 @@ html, body {
 body {
   background-color: var(--bg);
   color: var(--text);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
   letter-spacing: -0.01em;
   transition: background-color 0.2s, color 0.2s;

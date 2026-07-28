@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Treemap, ResponsiveContainer, Tooltip } from 'recharts';
 import type { TenenciaActual } from '@/types';
-import { PALETA_TIPO, RIESGO_COLOR, RIESGO_LABEL, RENTA_LABEL, GEO_LABEL, MONEDA_LABEL, MONEDA_COLOR, RENTA_COLOR, GEO_COLOR } from '@/lib/constants';
+import { PALETA_TIPO, RIESGO_COLOR, RIESGO_LABEL, RENTA_LABEL, GEO_LABEL, MONEDA_LABEL, MONEDA_COLOR, RENTA_COLOR, GEO_COLOR, colorPorCategoria } from '@/lib/constants';
 import { fmtUSD } from '@/lib/parser';
 
 interface Props {
@@ -25,11 +25,6 @@ const DIMS = [
 
 type Dim = typeof DIMS[number]['key'];
 
-const DEFAULT_COLORS = [
-  '#00d4c2','#3b82f6','#a78bfa','#fb923c',
-  '#f43f5e','#22d3ee','#34d399','#f472b6','#94a3b8',
-];
-
 function getGroupLabel(t: TenenciaActual, dim: Dim): string {
   switch (dim) {
     case 'RIESGO':     return RIESGO_LABEL[t.RIESGO]     ?? 'Sin dato';
@@ -40,13 +35,13 @@ function getGroupLabel(t: TenenciaActual, dim: Dim): string {
   }
 }
 
-function getGroupColor(group: string, dim: Dim, idx: number): string {
-  if (dim === 'TIPO')       return PALETA_TIPO[group]   ?? DEFAULT_COLORS[idx % DEFAULT_COLORS.length];
-  if (dim === 'RIESGO')     return RIESGO_COLOR[group]  ?? DEFAULT_COLORS[idx % DEFAULT_COLORS.length];
-  if (dim === 'MONEDA')     return MONEDA_COLOR[group]  ?? DEFAULT_COLORS[idx % DEFAULT_COLORS.length];
-  if (dim === 'RENTA')      return RENTA_COLOR[group]   ?? DEFAULT_COLORS[idx % DEFAULT_COLORS.length];
-  if (dim === 'SECTOR_GEO') return GEO_COLOR[group]     ?? DEFAULT_COLORS[idx % DEFAULT_COLORS.length];
-  return DEFAULT_COLORS[idx % DEFAULT_COLORS.length];
+function getGroupColor(group: string, dim: Dim): string {
+  if (dim === 'TIPO')       return PALETA_TIPO[group]   ?? colorPorCategoria(group);
+  if (dim === 'RIESGO')     return RIESGO_COLOR[group]  ?? colorPorCategoria(group);
+  if (dim === 'MONEDA')     return MONEDA_COLOR[group]  ?? colorPorCategoria(group);
+  if (dim === 'RENTA')      return RENTA_COLOR[group]   ?? colorPorCategoria(group);
+  if (dim === 'SECTOR_GEO') return GEO_COLOR[group]     ?? colorPorCategoria(group);
+  return colorPorCategoria(group);
 }
 
 function buildData(tenencias: TenenciaActual[], dim: Dim) {
@@ -66,8 +61,8 @@ function buildData(tenencias: TenenciaActual[], dim: Dim) {
     return sumB - sumA;
   });
 
-  return groups.map(([group, tickers], idx) => {
-    const baseColor = getGroupColor(group, dim, idx);
+  return groups.map(([group, tickers]) => {
+    const baseColor = getGroupColor(group, dim);
     const sorted = Array.from(tickers.entries()).sort(([, a], [, b]) => b - a);
     const maxVal = sorted[0]?.[1] ?? 1;
     const minVal = sorted[sorted.length - 1]?.[1] ?? 0;
@@ -88,7 +83,7 @@ function CustomCell({ x, y, width, height, name, value, depth, root, group, colo
   if (depth === 0 || !width || !height || width < 4 || height < 4) return <g />;
 
   const groupName  = depth === 1 ? name : group;
-  const cellColor  = color ?? '#64748b';
+  const cellColor  = color ?? '#8a7d6a';
   const total      = root?.value ?? 1;
   const pct        = Math.round((value / total) * 100);
   const dimmed     = filtroActivo != null && groupName !== filtroActivo;

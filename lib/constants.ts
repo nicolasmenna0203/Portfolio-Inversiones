@@ -1,19 +1,37 @@
 export const PALETA_TIPO: Record<string, string> = {
-  ARGY:     '#636efa', // violeta
-  ETF:      '#00cc96', // verde
-  FCI:      '#ffa15a', // naranja
-  ACCIONES: '#ef553b', // rojo
-  ACCION:   '#ef553b', // rojo (alias)
-  CRIPTO:   '#f5c518', // amarillo
-  BONOS:    '#19d3f3', // celeste
-  OTRO:     '#aaaaaa', // gris
+  ARGY:     '#8d7fc7', // lavanda
+  ETF:      '#5fb896', // verde salvia
+  FCI:      '#cfab6e', // dorado
+  ACCIONES: '#c15c4a', // terracota
+  ACCION:   '#c15c4a', // terracota (alias)
+  CRIPTO:   '#d4b95e', // ámbar
+  BONOS:    '#6a9bab', // azul apagado
+  ALTS:     '#b98fae', // ciruela
+  OTRO:     '#8a7d6a', // gris cálido
 };
 
+// Paleta de respaldo para categorías sin color asignado arriba (ej. un TIPO
+// nuevo en el Sheet). Se elige por hash del nombre, no por índice de aparición,
+// para que la misma categoría tenga siempre el mismo color sin importar en qué
+// gráfico o en qué orden aparezca (Treemap, EvolucionTipoChart, InformeTab, etc).
+const FALLBACK_PALETTE = [
+  '#cfab6e', '#6a9bab', '#8d7fc7', '#d4b95e',
+  '#c15c4a', '#7fb0c2', '#5fb896', '#b98fae', '#8a7d6a',
+];
+
+export function colorPorCategoria(nombre: string): string {
+  let hash = 0;
+  for (let i = 0; i < nombre.length; i++) {
+    hash = (hash * 31 + nombre.charCodeAt(i)) | 0;
+  }
+  return FALLBACK_PALETTE[Math.abs(hash) % FALLBACK_PALETTE.length];
+}
+
 export const RIESGO_COLOR: Record<string, string> = {
-  'CONSERVADOR':   '#2dc653', // verde
-  'MODERADO':      '#19d3f3', // celeste
-  'MODERADO-ALTO': '#ffa15a', // naranja
-  'AGRESIVO':      '#ef553b', // rojo
+  'CONSERVADOR':   '#5fb896', // verde salvia
+  'MODERADO':      '#6a9bab', // azul apagado
+  'MODERADO-ALTO': '#cfab6e', // dorado
+  'AGRESIVO':      '#c15c4a', // terracota
 };
 
 export const RIESGO_LABEL: Record<number, string> = {
@@ -39,30 +57,30 @@ export const MONEDA_LABEL: Record<string, string> = {
 };
 
 export const MONEDA_COLOR: Record<string, string> = {
-  'USD':    '#3b82f6', // azul
-  'PESO':   '#a78bfa', // violeta
-  'ARS':    '#a78bfa', // violeta (alias)
-  'CER':    '#00cc96', // verde
-  'DL':     '#ffa15a', // naranja
-  'BAD':    '#f5c518', // amarillo
-  'BADLAR': '#f5c518', // amarillo (alias)
-  'USDC':   '#ef553b', // rojo
+  'USD':    '#6a9bab', // azul apagado
+  'PESO':   '#8d7fc7', // lavanda
+  'ARS':    '#8d7fc7', // lavanda (alias)
+  'CER':    '#5fb896', // verde salvia
+  'DL':     '#cfab6e', // dorado
+  'BAD':    '#d4b95e', // ámbar
+  'BADLAR': '#d4b95e', // ámbar (alias)
+  'USDC':   '#c15c4a', // terracota
 };
 
 export const RENTA_COLOR: Record<string, string> = {
-  'VARIABLE': '#fb923c', // naranja
-  'VAR':      '#fb923c',
-  'FIJA':     '#19d3f3', // celeste
+  'VARIABLE': '#cfab6e', // dorado
+  'VAR':      '#cfab6e',
+  'FIJA':     '#6a9bab', // azul apagado
 };
 
 export const GEO_COLOR: Record<string, string> = {
-  'ARG':           '#636efa', // violeta
-  'EU':            '#00cc96', // verde
-  'EEUU':          '#00cc96',
-  'EMER':          '#ef553b', // rojo
-  'EMERGENTES':    '#ef553b',
-  'GLO':           '#ffa15a', // naranja
-  'GLOBAL':        '#ffa15a',
-  'DES':           '#19d3f3', // celeste
-  'DESARROLLADOS': '#19d3f3',
+  'ARG':           '#8d7fc7', // lavanda
+  'EU':            '#5fb896', // verde salvia
+  'EEUU':          '#5fb896',
+  'EMER':          '#c15c4a', // terracota
+  'EMERGENTES':    '#c15c4a',
+  'GLO':           '#cfab6e', // dorado
+  'GLOBAL':        '#cfab6e',
+  'DES':           '#6a9bab', // azul apagado
+  'DESARROLLADOS': '#6a9bab',
 };

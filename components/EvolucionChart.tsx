@@ -142,12 +142,12 @@ export default function EvolucionChart({ data, tenenciasPorMes, hideValues, mone
         >
           <defs>
             <linearGradient id="gradCartera" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%"  stopColor="#00d4c2" stopOpacity={0.18} />
-              <stop offset="95%" stopColor="#00d4c2" stopOpacity={0} />
+              <stop offset="5%"  stopColor="#cfab6e" stopOpacity={0.2} />
+              <stop offset="95%" stopColor="#cfab6e" stopOpacity={0} />
             </linearGradient>
             <linearGradient id="gradAportes" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%"  stopColor="#3b82f6" stopOpacity={0.14} />
-              <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+              <stop offset="5%"  stopColor="#6a9bab" stopOpacity={0.16} />
+              <stop offset="95%" stopColor="#6a9bab" stopOpacity={0} />
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="2 4" stroke="var(--border-subtle)" vertical={false} />
@@ -212,33 +212,33 @@ export default function EvolucionChart({ data, tenenciasPorMes, hideValues, mone
             type="monotone"
             dataKey="total_cartera"
             name="Total Cartera"
-            stroke="#00d4c2"
+            stroke="#cfab6e"
             strokeWidth={2.5}
             fill="url(#gradCartera)"
             dot={false}
-            activeDot={{ r: 5, fill: '#00d4c2', strokeWidth: 0 }}
+            activeDot={{ r: 5, fill: '#cfab6e', strokeWidth: 0 }}
           />
           <Area
             yAxisId="usd"
             type="monotone"
             dataKey="acumulado"
             name="Aportes Acumulados"
-            stroke="#3b82f6"
+            stroke="#6a9bab"
             strokeWidth={2}
             fill="url(#gradAportes)"
             dot={false}
-            activeDot={{ r: 5, fill: '#3b82f6', strokeWidth: 0 }}
+            activeDot={{ r: 5, fill: '#6a9bab', strokeWidth: 0 }}
           />
           <Line
             yAxisId="cnt"
             type="monotone"
             dataKey="activos"
             name="Activos"
-            stroke="#94a3b8"
+            stroke="#a89b87"
             strokeWidth={1.5}
             strokeDasharray="3 5"
             dot={false}
-            activeDot={{ r: 4, fill: '#94a3b8', strokeWidth: 0 }}
+            activeDot={{ r: 4, fill: '#a89b87', strokeWidth: 0 }}
           />
         </ComposedChart>
       </ResponsiveContainer>
