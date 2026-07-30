@@ -32,11 +32,14 @@ export async function fetchPerformance(
   const metricsMap = await fetchBondMetrics();
 
   const bonos: BondPerformance[] = [...metricsMap.values()]
-    .map((m) => ({
-      ...m,
-      sensibilidad: calcularSensibilidad(m.tir, m.modifiedDuration),
-      ...(tenencias[m.ticker] ? { tenenciaUsd: tenencias[m.ticker] } : {}),
-    }))
+    .map((m) => {
+      const tenenciaUsd = tenencias[m.tickerCartera ?? m.ticker];
+      return {
+        ...m,
+        sensibilidad: calcularSensibilidad(m.tir, m.modifiedDuration),
+        ...(tenenciaUsd ? { tenenciaUsd } : {}),
+      };
+    })
     .sort((a, b) => a.ticker.localeCompare(b.ticker));
 
   const carteraPorGrupo: GrupoPonderado[] = [];

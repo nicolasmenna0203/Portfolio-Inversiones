@@ -5,16 +5,18 @@ import type { DashboardData } from '@/types';
 import { tickersDeCartera } from '@/lib/tickersElegibles';
 import RentaFijaSection from './RentaFijaSection';
 import RentaVariableSection from './RentaVariableSection';
+import CarryTradeSection from './CarryTradeSection';
 
 interface Props {
   data: DashboardData;
 }
 
-type SubTab = 'fija' | 'variable';
+type SubTab = 'fija' | 'variable' | 'carry';
 
 const SUB_TABS: { id: SubTab; label: string }[] = [
   { id: 'fija',     label: 'Renta Fija' },
   { id: 'variable', label: 'Renta Variable' },
+  { id: 'carry',    label: 'Carry Trade' },
 ];
 
 export default function PerformanceTab({ data }: Props) {
@@ -58,9 +60,9 @@ export default function PerformanceTab({ data }: Props) {
         })}
       </div>
 
-      {subTab === 'fija'
-        ? <RentaFijaSection tenencias={tenencias} />
-        : <RentaVariableSection tickersUsa={tickersUsa} tenencias={tenencias} />}
+      {subTab === 'fija' && <RentaFijaSection tenencias={tenencias} />}
+      {subTab === 'variable' && <RentaVariableSection tickersUsa={tickersUsa} tenencias={tenencias} />}
+      {subTab === 'carry' && <CarryTradeSection tenencias={tenencias} />}
     </div>
   );
 }

@@ -11,7 +11,8 @@ import { MAPEO_BONOS_ARG } from './bonosArg';
 export type GrupoBono = 'USD' | 'CER' | 'ARS_TASA' | 'DOLLAR_LINKED';
 
 export interface BondMetric {
-  ticker: string;         // símbolo cartera (ej. "AL30"), no el de bonistas
+  ticker: string;          // símbolo cartera (ej. "AL30") si hay match en MAPEO_BONOS_ARG, si no el de bonistas
+  tickerCartera: string | null; // ticker cartera solo si este bono está mapeado (para cruzar tenencias)
   bondFamily: string;
   moneda: string;         // moneda en la que se calculó la TIR (USD o ARS)
   grupo: GrupoBono;        // USD hard-dollar / CER (ajustado inflación) / ARS tasa (LECAP, dual, Tamar, Badlar) / dollar-linked
@@ -21,6 +22,8 @@ export interface BondMetric {
   parity: number | null;    // precio/valor técnico, en tanto por uno (1 = a la par)
   fairValue: number | null;
   lastPrice: number | null;
+  vencimiento: string;      // "YYYY-MM-DD"
+  diasAlVencimiento: number;
 }
 
 // bonistas.com también trae tir_down_N/tir_up_N (sensibilidad a shocks de
@@ -32,6 +35,7 @@ export interface BondMetric {
 interface BondDataRaw {
   ticker: string;
   bond_family: string | null;
+  emisor: string | null;
   index: string | null;
   tir: number | null;
   tna: number | null;
@@ -39,6 +43,8 @@ interface BondDataRaw {
   parity: number | null;
   fair_value: number | null;
   last_price: number | null;
+  end_date: string | null;
+  days_to_finish: number | null;
 }
 
 let cache: { metrics: Map<string, BondMetric>; ts: number } | null = null;
@@ -68,28 +74,55 @@ async function fetchBondDataRaw(): Promise<BondDataRaw[]> {
 }
 
 /**
- * Mapa ticker-cartera (ej. "AL30") → métricas de renta fija (TIR, TNA,
- * duration, paridad, sensibilidad), para todo el universo de MAPEO_BONOS_ARG
- * que tenga match. Cuando un símbolo aparece más de una vez (ej. distinta
- * legislación LA/NY), se queda con el primero — no hay forma de saber cuál
- * corresponde a la tenencia sin ese dato en el Sheet.
+ * Mapa ticker → métricas de renta fija (TIR, TNA, duration, paridad,
+ * sensibilidad) del universo de deuda PÚBLICA que trackea bonistas.com
+ * (soberanos Argentina + BOPREAL/BCRA), no solo los tickers de
+ * MAPEO_BONOS_ARG. Se excluyen ONs corporativas (YPF, Pampa, Vista, etc.) —
+ * bonistas.com no cubre deuda provincial (Buenos Aires u otras) con TIR/
+ * duration, así que no puede incluirse desde esta fuente.
+ * Cuando el símbolo bonista tiene equivalente en MAPEO_BONOS_ARG, la entrada
+ * usa el ticker cartera (ej. "AL30") como clave para poder cruzar tenencias;
+ * si no, usa el símbolo tal cual lo publica bonistas (ej. "BPY26D").
+ * Cuando un símbolo aparece más de una vez (ej. distinta legislación LA/NY),
+ * se queda con el primero — no hay forma de saber cuál corresponde a la
+ * tenencia sin ese dato en el Sheet.
  */
 export async function fetchBondMetrics(): Promise<Map<string, BondMetric>> {
   if (cache && Date.now() - cache.ts < CACHE_MS) return cache.metrics;
 
   const raw = await fetchBondDataRaw();
 
-  // Símbolo bonista → ticker cartera, para todo el universo mapeado (no solo tenencias).
-  const simboloATicker = new Map<string, string>();
+  // Símbolo bonista → ticker cartera, solo para el subconjunto mapeado.
+  const simboloATickerCartera = new Map<string, string>();
   for (const [ticker, simbolo] of Object.entries(MAPEO_BONOS_ARG)) {
-    simboloATicker.set(simbolo, ticker);
+    simboloATickerCartera.set(simbolo, ticker);
   }
 
   const metrics = new Map<string, BondMetric>();
   for (const r of raw) {
-    const ticker = simboloATicker.get(r.ticker);
-    if (!ticker || metrics.has(ticker)) continue;
     if (r.tir == null || r.tna == null || r.modified_duration == null) continue;
+    // tir=0 y duration=0 a la vez es bonistas marcando "sin dato" (ONs sin
+    // cotización), no un bono real a la par con duration cero — nunca aparece
+    // duration=0 con tir≠0. Sin este filtro ensucian el scatter en el origen
+    // y arrastran la línea de tendencia.
+    if (r.tir === 0 && r.modified_duration === 0) continue;
+    // Deuda pública únicamente: bond_family "ONS"/"ONS-CABLE" son
+    // obligaciones negociables corporativas (YPF, Pampa, Vista, Tecpetrol...),
+    // no emisiones del Estado. El resto de familias (BONO-*, LETRA(S)-*,
+    // DUAL*, BOPREAL*) tiene emisor Argentina/Argentino/BCRA.
+    if (r.bond_family?.startsWith('ONS')) continue;
+    // Tickers con sufijo (_PUT, _CAP, _TAM, _CER) no son bonos comprables de
+    // forma independiente: _PUT son opciones (TIR sin relación con duration,
+    // ej. -75% u 23%), _CAP trae TIR negativas que no coinciden con su propia
+    // short_description, y _TAM/_CER son "piernas" hipotéticas de un dual
+    // (qué pagaría si gana esa pata) con TIR siempre en 0 — dato dummy, no
+    // calculado. Todos ensuciaban la curva o el universo con ruido.
+    if (r.ticker.includes('_')) continue;
+    if (r.end_date == null || r.days_to_finish == null) continue;
+
+    const tickerCartera = simboloATickerCartera.get(r.ticker) ?? null;
+    const ticker = tickerCartera ?? r.ticker;
+    if (metrics.has(ticker)) continue;
 
     // "USS" = hard dollar (ley cable) → USD. "CER" = ajustado por inflación.
     // "USDL" = dollar-linked: sigue al tipo de cambio, no a la inflación ni a
@@ -103,6 +136,7 @@ export async function fetchBondMetrics(): Promise<Map<string, BondMetric>> {
 
     metrics.set(ticker, {
       ticker,
+      tickerCartera,
       bondFamily: r.bond_family ?? '',
       moneda: grupo === 'USD' ? 'USD' : 'ARS',
       grupo,
@@ -112,6 +146,8 @@ export async function fetchBondMetrics(): Promise<Map<string, BondMetric>> {
       parity: r.parity,
       fairValue: r.fair_value,
       lastPrice: r.last_price,
+      vencimiento: r.end_date,
+      diasAlVencimiento: r.days_to_finish,
     });
   }
 

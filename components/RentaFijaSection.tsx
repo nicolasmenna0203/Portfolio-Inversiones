@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ScatterChart, Scatter, XAxis, YAxis, Tooltip,
+  ComposedChart, Scatter, Line, XAxis, YAxis, Tooltip,
   CartesianGrid, ResponsiveContainer,
 } from 'recharts';
 import type { GrupoBono, BondPerformance } from '@/types';
@@ -39,7 +39,12 @@ interface TooltipPayload {
 
 function ScatterTooltip({ active, payload }: { active?: boolean; payload?: TooltipPayload[] }) {
   if (!active || !payload?.length) return null;
-  const b = payload[0].payload;
+  // El tooltip es compartido por todas las series del ComposedChart: al pasar
+  // el cursor sobre la línea de tendencia, payload trae un TendenciaPunto
+  // (sin `grupo` ni `ticker`), no un BondPerformance — se ignora ese caso en
+  // vez de mostrar el tooltip para un punto que no es un bono real.
+  const b = payload.find((p) => p.payload?.grupo != null)?.payload;
+  if (!b) return null;
   const meta = GRUPO_META[b.grupo];
   return (
     <div style={{
@@ -84,6 +89,68 @@ function ScatterPoint(props: unknown) {
   );
 }
 
+/** Resuelve un sistema lineal Ax=b de 3x3 por eliminación gaussiana con pivoteo parcial. */
+function resolver3x3(A: number[][], b: number[]): number[] | null {
+  const M = A.map((fila, i) => [...fila, b[i]]);
+  for (let col = 0; col < 3; col++) {
+    let pivote = col;
+    for (let f = col + 1; f < 3; f++) if (Math.abs(M[f][col]) > Math.abs(M[pivote][col])) pivote = f;
+    if (Math.abs(M[pivote][col]) < 1e-12) return null;
+    [M[col], M[pivote]] = [M[pivote], M[col]];
+    for (let f = 0; f < 3; f++) {
+      if (f === col) continue;
+      const factor = M[f][col] / M[col][col];
+      for (let c = col; c <= 3; c++) M[f][c] -= factor * M[col][c];
+    }
+  }
+  return [M[0][3] / M[0][0], M[1][3] / M[1][1], M[2][3] / M[2][2]];
+}
+
+/**
+ * Regresión cuadrática (mínimos cuadrados, TIR = a·duration² + b·duration + c)
+ * para trazar la forma real de la curva de rendimientos — las curvas de bonos
+ * suelen ser cóncavas/convexas, no rectas. Con pocos puntos (<6) una parábola
+ * sobreajusta y puede generar formas sin sentido económico, así que se cae a
+ * una recta (mínimos cuadrados grado 1) en ese caso.
+ */
+function regresionCurva(puntos: { x: number; y: number }[]): ((x: number) => number) | null {
+  const n = puntos.length;
+  if (n < 2) return null;
+
+  if (n >= 6) {
+    let s0 = n, s1 = 0, s2 = 0, s3 = 0, s4 = 0, t0 = 0, t1 = 0, t2 = 0;
+    for (const { x, y } of puntos) {
+      const x2 = x * x;
+      s1 += x; s2 += x2; s3 += x2 * x; s4 += x2 * x2;
+      t0 += y; t1 += x * y; t2 += x2 * y;
+    }
+    const sol = resolver3x3(
+      [[s0, s1, s2], [s1, s2, s3], [s2, s3, s4]],
+      [t0, t1, t2],
+    );
+    if (sol) {
+      const [c, b, a] = sol;
+      return (x: number) => a * x * x + b * x + c;
+    }
+    // Sistema mal condicionado (ej. durations casi idénticas): cae a lineal.
+  }
+
+  const sumX = puntos.reduce((s, p) => s + p.x, 0);
+  const sumY = puntos.reduce((s, p) => s + p.y, 0);
+  const sumXY = puntos.reduce((s, p) => s + p.x * p.y, 0);
+  const sumXX = puntos.reduce((s, p) => s + p.x * p.x, 0);
+  const denom = n * sumXX - sumX * sumX;
+  if (denom === 0) return null; // todas las duration iguales: sin pendiente definible
+  const slope = (n * sumXY - sumX * sumY) / denom;
+  const intercept = (sumY - slope * sumX) / n;
+  return (x: number) => intercept + slope * x;
+}
+
+interface TendenciaPunto {
+  modifiedDuration: number;
+  tirTendencia: number;
+}
+
 type SortKey = 'ticker' | 'tir' | 'modifiedDuration' | 'parity';
 
 export default function RentaFijaSection({ tenencias }: Props) {
@@ -107,10 +174,60 @@ export default function RentaFijaSection({ tenencias }: Props) {
 
   const bonos = perf?.bonos ?? [];
 
-  const bonosFiltrados = useMemo(
+  const bonosDelGrupo = useMemo(
     () => bonos.filter((b) => b.grupo === filtroGrupo),
     [bonos, filtroGrupo],
   );
+
+  // Rango de duration disponible en el grupo activo, para acotar el eje X del
+  // scatter y la tabla. null mientras no hay bonos todavía (carga en curso),
+  // para no confundir "sin datos" con un rango real [0,1] — bonosDelGrupo
+  // llega vacío en el primer render (antes de que perf resuelva) y de nuevo
+  // brevemente al cambiar de grupo, así que el efecto de abajo debe esperar a
+  // que haya datos reales antes de fijar el rango, o queda pegado al [0,1]
+  // placeholder para siempre.
+  const rangoDisponible = useMemo<[number, number] | null>(() => {
+    if (bonosDelGrupo.length === 0) return null;
+    const durations = bonosDelGrupo.map((b) => b.modifiedDuration);
+    return [Math.min(...durations), Math.max(...durations)];
+  }, [bonosDelGrupo]);
+
+  const [rangoDuration, setRangoDuration] = useState<[number, number]>([0, 1]);
+  const rangoInicializado = useRef<GrupoBono | null>(null);
+
+  useEffect(() => {
+    if (!rangoDisponible) return; // esperar a que el grupo tenga datos reales
+    if (rangoInicializado.current === filtroGrupo) return;
+    rangoInicializado.current = filtroGrupo;
+    setRangoDuration(rangoDisponible);
+  }, [filtroGrupo, rangoDisponible]);
+
+  const rangoActivo: [number, number] = rangoDisponible ?? [0, 1];
+
+  const bonosFiltrados = useMemo(
+    () => bonosDelGrupo.filter((b) => b.modifiedDuration >= rangoDuration[0] && b.modifiedDuration <= rangoDuration[1]),
+    [bonosDelGrupo, rangoDuration],
+  );
+
+  // Línea de tendencia (regresión cuadrática TIR ~ duration, con fallback
+  // lineal si hay pocos puntos) sobre los bonos dentro del rango de duration
+  // seleccionado — muestra la forma real de la curva de rendimientos, no solo
+  // los puntos dispersos. Se generan 24 puntos intermedios para que la
+  // parábola se vea como curva suave y no como segmentos rectos.
+  const tendencia = useMemo<TendenciaPunto[]>(() => {
+    const puntos = bonosFiltrados.map((b) => ({ x: b.modifiedDuration, y: b.tir }));
+    const f = regresionCurva(puntos);
+    if (!f) return [];
+    const durations = puntos.map((p) => p.x);
+    const minD = Math.min(...durations);
+    const maxD = Math.max(...durations);
+    if (minD === maxD) return [];
+    const pasos = 24;
+    return Array.from({ length: pasos + 1 }, (_, i) => {
+      const d = minD + ((maxD - minD) * i) / pasos;
+      return { modifiedDuration: d, tirTendencia: f(d) };
+    });
+  }, [bonosFiltrados]);
 
   const bonosOrdenados = useMemo(() => {
     const copia = [...bonosFiltrados];
@@ -220,15 +337,17 @@ export default function RentaFijaSection({ tenencias }: Props) {
             Curva de Rendimientos (TIR vs Duration) · {GRUPO_META[filtroGrupo].label}
           </p>
           <span style={{ fontSize: 10, color: 'var(--muted)' }}>
-            Un punto por bono · puntos grandes = posición en tu cartera · universo del grupo seleccionado
+            Un punto por bono · puntos grandes = posición en tu cartera · línea = tendencia del grupo (ajuste cuadrático) · acotado al rango de duration seleccionado
           </span>
         </div>
         <div style={{ height: 320 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <ScatterChart margin={{ top: 5, right: 16, left: 0, bottom: 0 }}>
+            <ComposedChart margin={{ top: 5, right: 16, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="2 4" stroke="var(--border-subtle)" />
               <XAxis
                 type="number" dataKey="modifiedDuration" name="Duration"
+                domain={rangoDuration} allowDataOverflow
+                tickFormatter={(v) => v.toFixed(2)}
                 unit=" a." tick={{ fill: 'var(--muted)', fontSize: 11 }}
                 tickLine={false} axisLine={false}
                 label={{ value: 'Duration (años)', position: 'insideBottom', offset: -2, fill: 'var(--muted)', fontSize: 11 }}
@@ -240,14 +359,81 @@ export default function RentaFijaSection({ tenencias }: Props) {
                 tickLine={false} axisLine={false} width={44}
               />
               <Tooltip content={<ScatterTooltip />} cursor={{ strokeDasharray: '3 3', stroke: 'var(--border)' }} />
+              {tendencia.length > 0 && (
+                <Line
+                  type="monotone"
+                  data={tendencia}
+                  dataKey="tirTendencia"
+                  xAxisId={0}
+                  stroke={GRUPO_META[filtroGrupo].color}
+                  strokeWidth={1.5}
+                  strokeDasharray="5 4"
+                  strokeOpacity={0.6}
+                  dot={false}
+                  activeDot={false}
+                  legendType="none"
+                  isAnimationActive={false}
+                  name="Tendencia"
+                />
+              )}
               <Scatter
                 name={GRUPO_META[filtroGrupo].label}
                 data={bonosFiltrados}
                 fill={GRUPO_META[filtroGrupo].color}
                 shape={ScatterPoint}
               />
-            </ScatterChart>
+            </ComposedChart>
           </ResponsiveContainer>
+        </div>
+
+        {/* ── Selector de rango de duration — acota el scatter y la tabla ──── */}
+        <div style={{ padding: '10px 4px 4px', flexShrink: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+            <span style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>
+              Rango de duration
+            </span>
+            <span style={{ fontSize: 11, color: 'var(--text-sec)', fontWeight: 600 }}>
+              {fmtDuration(rangoDuration[0])} – {fmtDuration(rangoDuration[1])}
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <input
+              type="range"
+              aria-label="Duration mínima"
+              min={rangoActivo[0]} max={rangoActivo[1]}
+              step={(rangoActivo[1] - rangoActivo[0]) / 100 || 0.01}
+              value={rangoDuration[0]}
+              onChange={(e) => {
+                const v = Math.min(Number(e.target.value), rangoDuration[1]);
+                setRangoDuration([v, rangoDuration[1]]);
+              }}
+              style={{ flex: 1, accentColor: GRUPO_META[filtroGrupo].color }}
+            />
+            <input
+              type="range"
+              aria-label="Duration máxima"
+              min={rangoActivo[0]} max={rangoActivo[1]}
+              step={(rangoActivo[1] - rangoActivo[0]) / 100 || 0.01}
+              value={rangoDuration[1]}
+              onChange={(e) => {
+                const v = Math.max(Number(e.target.value), rangoDuration[0]);
+                setRangoDuration([rangoDuration[0], v]);
+              }}
+              style={{ flex: 1, accentColor: GRUPO_META[filtroGrupo].color }}
+            />
+            {(rangoDuration[0] !== rangoActivo[0] || rangoDuration[1] !== rangoActivo[1]) && (
+              <button
+                onClick={() => setRangoDuration(rangoActivo)}
+                className="pill-touch"
+                style={{
+                  fontSize: 10, fontWeight: 600, color: 'var(--muted)', background: 'transparent',
+                  border: '1px solid var(--border)', borderRadius: 20, padding: '3px 10px', cursor: 'pointer', flexShrink: 0,
+                }}
+              >
+                Reset
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

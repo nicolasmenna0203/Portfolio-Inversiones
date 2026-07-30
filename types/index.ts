@@ -157,6 +157,8 @@ export type GrupoBono = 'USD' | 'CER' | 'ARS_TASA' | 'DOLLAR_LINKED';
 
 export interface BondPerformance {
   ticker: string;
+  /** Ticker cartera (ej. "AL30") si este bono está en MAPEO_BONOS_ARG; null si es del universo ampliado. */
+  tickerCartera: string | null;
   bondFamily: string;
   moneda: string;              // moneda en la que se calculó la TIR (USD o ARS)
   grupo: GrupoBono;             // USD hard-dollar / CER (ajustado inflación) / ARS tasa / dollar-linked
@@ -166,6 +168,8 @@ export interface BondPerformance {
   parity: number | null;
   fairValue: number | null;
   lastPrice: number | null;
+  vencimiento: string;      // "YYYY-MM-DD"
+  diasAlVencimiento: number;
   sensibilidad: SensibilidadTir[];
   /** Presente solo si el ticker está en la cartera actual. */
   tenenciaUsd?: number;
@@ -184,6 +188,26 @@ export interface PerformanceResponse {
   /** Una entrada por grupo con posiciones en cartera; ausente si no hay tenencia en ese grupo. */
   carteraPorGrupo: GrupoPonderado[];
   generatedAt: number;
+}
+
+// ── Carry trade (LECAP/Boncap/duales/Tamar/Badlar en pesos vs. dólar MEP) ────
+
+export interface CarryTradeItem {
+  ticker: string;
+  bondFamily: string;
+  tir: number;               // TIR efectiva anual en pesos, tanto por uno
+  tna: number;
+  vencimiento: string;        // "YYYY-MM-DD"
+  diasAlVencimiento: number;
+  /** Retorno directo en pesos si se mantiene hasta el vencimiento: (1+TIR)^(días/365) - 1. */
+  retornoDirectoArs: number;
+  /** Tipo de cambio MEP al cual, si se devalúa por encima, el carry pierde contra quedarse en dólares. */
+  mepBreakeven: number;
+  /** Devaluación implícita entre el MEP de entrada y el breakeven, en tanto por uno. */
+  devaluacionBreakeven: number;
+  /** Retorno directo en USD dado el MEP de entrada/salida ingresados por el usuario; null si no hay MEP cargado. */
+  retornoDirectoUsd: number | null;
+  tenenciaUsd?: number;
 }
 
 // ── Performance (renta variable): fundamentals, variación, histórico ─────────
