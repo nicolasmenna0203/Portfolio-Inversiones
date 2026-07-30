@@ -113,3 +113,43 @@ export async function preciosBonos(tickers: string[]): Promise<Record<string, nu
   }
   return out;
 }
+
+/**
+ * Mapa ticker-cartera → precio ARS por 100 nominales, usando el símbolo base
+ * (no la especie "D"/cable). Bonos que solo pagan en pesos (CER, duales,
+ * dollar-linked, Lecap/Boncap) no siempre tienen especie "D", así que este
+ * precio es el que corresponde para calcular nominales cuando el pago es en ARS.
+ */
+export async function preciosBonosArs(tickers: string[]): Promise<Record<string, number>> {
+  const todos = await fetchTodosPreciosBonos();
+  const out: Record<string, number> = {};
+  for (const t of tickers) {
+    const key = t.toUpperCase();
+    if (!MAPEO_BONOS_ARG[key]) continue;
+    const px = todos[key];
+    if (px != null && px > 0) out[key] = px;
+  }
+  return out;
+}
+
+// ── Dólar MEP spot ───────────────────────────────────────────────────────────
+
+let cacheMep: { valor: number; ts: number } | null = null;
+
+/** Dólar MEP actual (pesos por dólar), para convertir tenencias USD del Sheet a ARS. */
+export async function mepSpot(): Promise<number | null> {
+  if (cacheMep && Date.now() - cacheMep.ts < CACHE_MS) return cacheMep.valor;
+  try {
+    const res = await fetch('https://api.argentinadatos.com/v1/cotizaciones/dolares/bolsa', {
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return null;
+    const json: { fecha: string; venta: number }[] = await res.json();
+    if (json.length === 0) return null;
+    const ultimo = json.reduce((a, b) => (b.fecha > a.fecha ? b : a));
+    cacheMep = { valor: ultimo.venta, ts: Date.now() };
+    return ultimo.venta;
+  } catch {
+    return null;
+  }
+}

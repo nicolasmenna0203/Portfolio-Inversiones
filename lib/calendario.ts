@@ -2,7 +2,7 @@ import type { EventoCalendario, CalendarioResponse, YieldTicker } from '@/types'
 import { fetchBonosArg } from './bonosArg';
 import { fetchDividendosFuturos } from './dividendosFuturos';
 import { fetchEarningsUsa } from './yahooEarnings';
-import { datosAcciones, preciosBonos } from './precios';
+import { datosAcciones, preciosBonos, preciosBonosArs, mepSpot } from './precios';
 import { netoDividendo } from './retenciones';
 
 /** Dividendos ya pagados (histórico real de Yahoo Finance chart). */
@@ -54,9 +54,11 @@ export async function fetchCalendarioFinanciero(
 ): Promise<CalendarioResponse> {
   // Precios de mercado para estimar unidades a partir del valor de cada posición.
   // De acciones/ETFs se trae además el yield trailing 12m (sale de la misma llamada).
-  const [datosUsa, pxBonos] = await Promise.all([
+  const [datosUsa, pxBonos, pxBonosArs, mep] = await Promise.all([
     datosAcciones(tickersUsa),
     preciosBonos(tickersArg),
+    preciosBonosArs(tickersArg),
+    mepSpot(),
   ]);
   const pxAcciones: Record<string, number> = {};
   for (const [t, d] of Object.entries(datosUsa)) pxAcciones[t] = d.px;
@@ -68,7 +70,7 @@ export async function fetchCalendarioFinanciero(
   tareas.push(fetchDividendosFuturos(tickersUsa, desde, hasta, tenencias, pxAcciones));
   tareas.push(fetchEarningsUsa(tickersUsa, desde, hasta));
   // Bonos/ONs ARG: renta + amortización (bonistas), con cobro estimado por tenencia/precio.
-  tareas.push(fetchBonosArg(tickersArg, desde, hasta, tenencias, pxBonos));
+  tareas.push(fetchBonosArg(tickersArg, desde, hasta, tenencias, pxBonos, pxBonosArs, mep));
 
   const settled = await Promise.allSettled(tareas);
 

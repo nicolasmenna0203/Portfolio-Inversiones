@@ -70,6 +70,13 @@ async function fetchPagosBonistas(): Promise<PagoBonista[]> {
  * estima el cobro real: nominales ≈ tenencia_usd / precio_por_100 × 100, y el
  * flujo de bonistas ya viene "por 100 nominales", así que
  * cobro = (tenencia_usd / precio_por_100) × monto_por_100.
+ *
+ * Para bonos que pagan en ARS (CER, duales, dollar-linked, Lecap/Boncap), los
+ * nominales se calculan con el precio en pesos del símbolo base (`preciosArs`,
+ * no la especie "D"/cable) y la tenencia convertida a pesos vía `mep` — usar el
+ * precio USD-cable ahí daría un factor equivocado porque esos bonos no siempre
+ * cotizan en esa especie. El pago resultante queda simulado en ARS, como paga
+ * realmente el bono, no convertido a USD.
  */
 export async function fetchBonosArg(
   tickers: string[],
@@ -77,6 +84,8 @@ export async function fetchBonosArg(
   hasta: string,
   tenencias: Record<string, number> = {},
   precios: Record<string, number> = {},
+  preciosArs: Record<string, number> = {},
+  mep: number | null = null,
 ): Promise<EventoCalendario[]> {
   // Símbolo bonista → ticker original, solo para los tickers pedidos que tengan mapeo.
   const simboloATicker = new Map<string, string>();
@@ -95,11 +104,20 @@ export async function fetchBonosArg(
     if (p.fecha < desde || p.fecha > hasta) continue;
 
     const moneda = p.moneda || 'USD';
-    // Factor de escala = nominales/100 = tenencia_usd / precio_usd_por_100.
-    // Solo aplica si conocemos tenencia y precio del bono.
     const tenenciaUsd = tenencias[ticker];
-    const precio = precios[ticker];
-    const factor = tenenciaUsd && precio ? tenenciaUsd / precio : null;
+
+    // Factor de escala = nominales/100. El precio a usar depende de la moneda
+    // del pago: en ARS, el bono suele no cotizar en la especie "D"/cable, así
+    // que hace falta el precio en pesos del símbolo base + convertir la
+    // tenencia (USD, como la guarda el Sheet) a pesos con el MEP spot.
+    let factor: number | null = null;
+    if (moneda === 'ARS') {
+      const precioArs = preciosArs[ticker];
+      if (tenenciaUsd && precioArs && mep) factor = (tenenciaUsd * mep) / precioArs;
+    } else {
+      const precio = precios[ticker];
+      if (tenenciaUsd && precio) factor = tenenciaUsd / precio;
+    }
 
     if (p.cupon > 0) {
       eventos.push({
