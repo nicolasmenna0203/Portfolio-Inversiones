@@ -16,19 +16,40 @@ export interface DatosAccion {
   yieldAnual: number;
   /** Cantidad de pagos en los últimos 12 meses; permite inferir la frecuencia. */
   pagos: number;
+  /** Variaciones en tanto por uno, derivadas de la misma serie de closes diarios (1 año). null si no hay suficiente historia. */
+  variacion1m: number | null;
+  variacionYtd: number | null;
+  variacion1a: number | null;
 }
 
 const cachePrecioAccion = new Map<string, { datos: DatosAccion; ts: number }>();
 const CACHE_MS = 60 * 60 * 1000; // 1 hora
 
-// El yield se deriva del historial de dividendos del chart en vez de pedir
-// quoteSummary: ese endpoint devuelve 401 sin cookie+crumb, y el chart ya se
-// consulta igual para el precio, así que el yield sale sin request extra.
+/** Variación entre el último close y el close en o antes de `objetivoTs` (segundos epoch); null si no hay dato suficientemente viejo. */
+function variacionDesde(
+  closes: { ts: number; close: number }[],
+  ultimoClose: number,
+  objetivoTs: number,
+): number | null {
+  let candidato: number | null = null;
+  for (const c of closes) {
+    if (c.ts <= objetivoTs) candidato = c.close;
+    else break;
+  }
+  if (candidato == null || candidato <= 0) return null;
+  return ultimoClose / candidato - 1;
+}
+
+// El yield y las variaciones se derivan del historial diario del chart en vez
+// de pedir quoteSummary por separado: ese endpoint devuelve 401 sin
+// cookie+crumb (ver lib/yahooFundamentals.ts para el que sí usa crumb), y acá
+// una sola llamada de 1 año a interval diario alcanza para precio, dividendos
+// y las tres variaciones (1M/YTD/1A) sin requests extra.
 async function fetchDatosAccion(ticker: string): Promise<DatosAccion | null> {
   const hit = cachePrecioAccion.get(ticker);
   if (hit && Date.now() - hit.ts < CACHE_MS) return hit.datos;
   try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=1y&interval=3mo&events=div`;
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=1y&interval=1d&events=div`;
     const res = await fetch(url, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(8000) });
     if (!res.ok) return null;
     const json = await res.json();
@@ -41,7 +62,22 @@ async function fetchDatosAccion(ticker: string): Promise<DatosAccion | null> {
     const ultimos = Object.values(dividends).filter((d) => d.date >= desde);
     const divAnual = ultimos.reduce((s, d) => s + d.amount, 0);
 
-    const datos: DatosAccion = { px, divAnual, yieldAnual: divAnual / px, pagos: ultimos.length };
+    const timestamps: number[] = result?.timestamp ?? [];
+    const closesRaw: (number | null)[] = result?.indicators?.quote?.[0]?.close ?? [];
+    const closes = timestamps
+      .map((ts, i) => ({ ts, close: closesRaw[i] }))
+      .filter((c): c is { ts: number; close: number } => typeof c.close === 'number' && c.close > 0);
+
+    const ahora = Date.now() / 1000;
+    const inicioAnioActual = Date.UTC(new Date().getUTCFullYear(), 0, 1) / 1000;
+    const variacion1m = variacionDesde(closes, px, ahora - 30 * 86_400);
+    const variacionYtd = variacionDesde(closes, px, inicioAnioActual);
+    const variacion1a = closes.length > 0 ? px / closes[0].close - 1 : null;
+
+    const datos: DatosAccion = {
+      px, divAnual, yieldAnual: divAnual / px, pagos: ultimos.length,
+      variacion1m, variacionYtd, variacion1a,
+    };
     cachePrecioAccion.set(ticker, { datos, ts: Date.now() });
     return datos;
   } catch {

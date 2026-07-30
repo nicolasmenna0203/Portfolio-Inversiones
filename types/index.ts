@@ -185,3 +185,44 @@ export interface PerformanceResponse {
   carteraPorGrupo: GrupoPonderado[];
   generatedAt: number;
 }
+
+// ── Performance (renta variable): fundamentals, variación, histórico ─────────
+
+export interface StockPerformance {
+  ticker: string;
+  nombre?: string;
+  px: number;
+  /** Variaciones en tanto por uno (0.0123 = 1.23%); null si no se pudo calcular. */
+  variacion1d: number | null;
+  variacion1m: number | null;
+  variacionYtd: number | null;
+  variacion1a: number | null;
+  /** trailingPE con fallback a forwardPE; null si Yahoo no publica ninguno (ej. ganancias negativas). */
+  peRatio: number | null;
+  marketCap: number | null;
+  fiftyTwoWeekLow: number | null;
+  fiftyTwoWeekHigh: number | null;
+  /** Preferido: yieldAnual trailing-12m real de datosAcciones(); fallback al forward yield de Yahoo. */
+  dividendYield: number | null;
+  /** Presente solo si el ticker está en la cartera actual. */
+  tenenciaUsd?: number;
+}
+
+export interface PerformanceVariableResponse {
+  acciones: StockPerformance[];
+  generatedAt: number;
+}
+
+export interface PrecioHistoricoPunto {
+  fecha: string; // "YYYY-MM-DD"
+  close: number;
+}
+
+export type RangoHistorico = '1m' | '6m' | '1a' | '5a';
+
+export interface HistoricoResponse {
+  ticker: string;
+  rango: RangoHistorico;
+  puntos: PrecioHistoricoPunto[];
+  generatedAt: number;
+}

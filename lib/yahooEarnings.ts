@@ -1,42 +1,10 @@
 import type { EventoCalendario } from '@/types';
+import { getCrumb, UA } from './yahooCrumb';
 
 // Reemplazo de Finnhub para balances: Yahoo Finance calendarEvents da la próxima
 // fecha de earnings por ticker + estimación de EPS. Sin API key; requiere una
-// cookie de sesión + "crumb" que Yahoo exige para su endpoint quoteSummary.
-
-const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36';
-
-let crumbCache: { crumb: string; cookie: string; ts: number } | null = null;
-const CRUMB_TTL = 30 * 60 * 1000; // 30 min
-
-/** Obtiene (y cachea) el par cookie+crumb necesario para quoteSummary. */
-async function getCrumb(): Promise<{ crumb: string; cookie: string } | null> {
-  if (crumbCache && Date.now() - crumbCache.ts < CRUMB_TTL) {
-    return { crumb: crumbCache.crumb, cookie: crumbCache.cookie };
-  }
-  try {
-    // fc.yahoo.com responde 404 pero igual devuelve las cookies A1/A3 en Set-Cookie.
-    const resCookie = await fetch('https://fc.yahoo.com', {
-      headers: { 'User-Agent': UA },
-      signal: AbortSignal.timeout(8000),
-    });
-    const setCookie = resCookie.headers.get('set-cookie') ?? '';
-    const cookie = setCookie.split(',').map((c) => c.split(';')[0].trim()).filter(Boolean).join('; ');
-    if (!cookie) return null;
-
-    const resCrumb = await fetch('https://query1.finance.yahoo.com/v1/test/getcrumb', {
-      headers: { 'User-Agent': UA, Cookie: cookie },
-      signal: AbortSignal.timeout(8000),
-    });
-    const crumb = (await resCrumb.text()).trim();
-    if (!crumb || crumb.includes('<')) return null;
-
-    crumbCache = { crumb, cookie, ts: Date.now() };
-    return { crumb, cookie };
-  } catch {
-    return null;
-  }
-}
+// cookie de sesión + "crumb" que Yahoo exige para su endpoint quoteSummary
+// (ver lib/yahooCrumb.ts, compartido con lib/yahooFundamentals.ts).
 
 interface YahooEarnings {
   earningsDate?: { raw: number; fmt: string }[];
