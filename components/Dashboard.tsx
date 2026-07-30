@@ -17,8 +17,9 @@ import ProyeccionesTab from './ProyeccionesTab';
 import BenchmarksTab from './BenchmarksTab';
 import NoticiasTab from './NoticiasTab';
 import CalendarioTab from './CalendarioTab';
+import PerformanceTab from './PerformanceTab';
 import { FlagUS, FlagAR } from './FlagIcons';
-type Tab = 'resumen' | 'tenencias' | 'informe' | 'proyecciones' | 'benchmarks' | 'noticias' | 'calendario';
+type Tab = 'resumen' | 'tenencias' | 'informe' | 'proyecciones' | 'benchmarks' | 'noticias' | 'calendario' | 'performance';
 
 const DIMS_TENENCIAS = [
   { key: 'TIPO',       label: 'Tipo de Activo'    },
@@ -37,6 +38,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'benchmarks',   label: 'Benchmarks'  },
   { id: 'noticias',     label: 'Noticias'    },
   { id: 'calendario',   label: 'Calendario'  },
+  { id: 'performance',  label: 'Performance' },
 ];
 
 // ── Filtro activo pill ────────────────────────────────────────────────────────
@@ -511,6 +513,13 @@ const [uploadOpen, setUploadOpen] = useState(false);
       {tab === 'calendario' && (
         <section className="tab-scroll" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           <CalendarioTab data={data} />
+        </section>
+      )}
+
+      {/* ── Tab: Performance (TIR, duration, paridad de bonos) ────────────────── */}
+      {tab === 'performance' && (
+        <section className="tab-scroll" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+          <PerformanceTab data={data} />
         </section>
       )}
 

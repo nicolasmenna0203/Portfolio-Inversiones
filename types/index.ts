@@ -143,3 +143,45 @@ export interface CalendarioResponse {
   errores: string[];
   generatedAt: number;
 }
+
+// ── Performance (renta fija): TIR, duration, paridad ─────────────────────────
+
+export interface SensibilidadTir {
+  shock: number;    // % de shock de precio (1, 2, 3, 5, 10)
+  tirDown: number;   // TIR aproximada si el precio cae `shock`%: TIR + shock%/duration
+  tirUp: number;      // TIR aproximada si el precio sube `shock`%: TIR - shock%/duration
+}
+
+/** Agrupamiento por tipo de tasa — TIRs de distinto grupo no son comparables entre sí. */
+export type GrupoBono = 'USD' | 'CER' | 'ARS_TASA' | 'DOLLAR_LINKED';
+
+export interface BondPerformance {
+  ticker: string;
+  bondFamily: string;
+  moneda: string;              // moneda en la que se calculó la TIR (USD o ARS)
+  grupo: GrupoBono;             // USD hard-dollar / CER (ajustado inflación) / ARS tasa / dollar-linked
+  tir: number;                  // TIR efectiva anual, en tanto por uno
+  tna: number;                  // tasa nominal anual, en tanto por uno
+  modifiedDuration: number;     // años
+  parity: number | null;
+  fairValue: number | null;
+  lastPrice: number | null;
+  sensibilidad: SensibilidadTir[];
+  /** Presente solo si el ticker está en la cartera actual. */
+  tenenciaUsd?: number;
+}
+
+/** TIR y duration ponderadas por tenencia, calculadas solo dentro del mismo grupo. */
+export interface GrupoPonderado {
+  grupo: GrupoBono;
+  tirPonderada: number;
+  durationPonderada: number;
+  tenenciaTotalUsd: number;
+}
+
+export interface PerformanceResponse {
+  bonos: BondPerformance[];
+  /** Una entrada por grupo con posiciones en cartera; ausente si no hay tenencia en ese grupo. */
+  carteraPorGrupo: GrupoPonderado[];
+  generatedAt: number;
+}
