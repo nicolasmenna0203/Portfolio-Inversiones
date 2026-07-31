@@ -53,7 +53,7 @@ function ScatterTooltip({ active, payload }: { active?: boolean; payload?: Toolt
       boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
     }}>
       <p style={{ margin: '0 0 4px', fontWeight: 700, color: 'var(--text)' }}>{b.ticker}</p>
-      <p style={{ margin: '0 0 6px', color: meta.color, fontSize: 11 }}>{meta.label}</p>
+      <p style={{ margin: '0 0 6px', color: meta.color, fontSize: 11 }}>{meta.label}{b.etiqueta ? ` · ${b.etiqueta}` : ''}</p>
       <p style={{ margin: '2px 0', color: 'var(--text-sec)' }}>TIR: <strong>{fmtPct1(b.tir)}</strong></p>
       <p style={{ margin: '2px 0', color: 'var(--text-sec)' }}>Duration: <strong>{fmtDuration(b.modifiedDuration)}</strong></p>
       {b.parity != null && <p style={{ margin: '2px 0', color: 'var(--text-sec)' }}>Paridad: <strong>{fmtPct1(b.parity)}</strong></p>}
@@ -79,13 +79,20 @@ function ScatterPoint(props: unknown) {
   const { cx, cy, fill, payload } = props as ScatterShapeProps;
   if (cx == null || cy == null || !payload) return <g />;
   return (
-    <circle
-      cx={cx} cy={cy} r={radioDe(payload)}
-      fill={fill} fillOpacity={payload.tenenciaUsd ? 1 : 0.45}
-      stroke={payload.tenenciaUsd ? fill : 'none'}
-      strokeWidth={payload.tenenciaUsd ? 2 : 0}
-      strokeOpacity={0.4}
-    />
+    <g>
+      {/* Círculo invisible con radio ampliado: solo agranda el área de hover
+          para que el tooltip dispare sin tener que apuntar al punto visible
+          de 4-7px — Recharts detecta el punto activo por el shape renderizado,
+          no por proximidad real al dato. */}
+      <circle cx={cx} cy={cy} r={12} fill="transparent" />
+      <circle
+        cx={cx} cy={cy} r={radioDe(payload)}
+        fill={fill} fillOpacity={payload.tenenciaUsd ? 1 : 0.45}
+        stroke={payload.tenenciaUsd ? fill : 'none'}
+        strokeWidth={payload.tenenciaUsd ? 2 : 0}
+        strokeOpacity={0.4}
+      />
+    </g>
   );
 }
 
@@ -346,7 +353,7 @@ export default function RentaFijaSection({ tenencias }: Props) {
               <CartesianGrid strokeDasharray="2 4" stroke="var(--border-subtle)" />
               <XAxis
                 type="number" dataKey="modifiedDuration" name="Duration"
-                domain={rangoDuration} allowDataOverflow
+                domain={[0, rangoDuration[1]]} allowDataOverflow
                 tickFormatter={(v) => v.toFixed(2)}
                 unit=" a." tick={{ fill: 'var(--muted)', fontSize: 11 }}
                 tickLine={false} axisLine={false}
@@ -381,6 +388,7 @@ export default function RentaFijaSection({ tenencias }: Props) {
                 data={bonosFiltrados}
                 fill={GRUPO_META[filtroGrupo].color}
                 shape={ScatterPoint}
+                isAnimationActive={false}
               />
             </ComposedChart>
           </ResponsiveContainer>
@@ -472,6 +480,11 @@ export default function RentaFijaSection({ tenencias }: Props) {
                 >
                   <td style={{ padding: '7px 10px', fontWeight: 700, color: 'var(--text)' }}>
                     {b.ticker}{b.tenenciaUsd ? ' ★' : ''}
+                    {b.etiqueta && (
+                      <span style={{ marginLeft: 6, fontWeight: 600, fontSize: 10, color: 'var(--muted)' }}>
+                        {b.etiqueta}
+                      </span>
+                    )}
                   </td>
                   <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 700, color: 'var(--text)' }}>{fmtPct1(b.tir)}</td>
                   <td style={{ padding: '7px 10px', textAlign: 'right', color: 'var(--text-sec)' }}>{fmtPct1(b.tna)}</td>

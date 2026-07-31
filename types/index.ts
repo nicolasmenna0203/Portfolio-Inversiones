@@ -161,7 +161,9 @@ export interface BondPerformance {
   tickerCartera: string | null;
   bondFamily: string;
   moneda: string;              // moneda en la que se calculó la TIR (USD o ARS)
-  grupo: GrupoBono;             // USD hard-dollar / CER (ajustado inflación) / ARS tasa / dollar-linked
+  grupo: GrupoBono;             // USD hard-dollar / CER (ajustado inflación, incluye duales CER/TAMAR) / ARS tasa / dollar-linked
+  /** Aclaración sobre el grupo (ej. "CER/TAMAR" en duales) cuando el grupo solo no alcanza para describir el instrumento. */
+  etiqueta: string | null;
   tir: number;                  // TIR efectiva anual, en tanto por uno
   tna: number;                  // tasa nominal anual, en tanto por uno
   modifiedDuration: number;     // años
@@ -187,6 +189,29 @@ export interface PerformanceResponse {
   bonos: BondPerformance[];
   /** Una entrada por grupo con posiciones en cartera; ausente si no hay tenencia en ese grupo. */
   carteraPorGrupo: GrupoPonderado[];
+  generatedAt: number;
+}
+
+// ── FCI de Cocos Capital (VCP, rendimientos), vía planilla diaria de CAFCI ───
+
+export interface FciPerformance {
+  ticker: string;
+  nombreFondo: string;
+  moneda: string;
+  horizonte: string;
+  vcp: number;
+  variacionDiaria: number;
+  rendimientoMes: number;
+  rendimientoAnio: number;
+  rendimiento12Meses: number;
+  patrimonio: number;
+  fecha: string;
+  /** Presente solo si el ticker está en la cartera actual. */
+  tenenciaUsd?: number;
+}
+
+export interface FciResponse {
+  fondos: FciPerformance[];
   generatedAt: number;
 }
 
