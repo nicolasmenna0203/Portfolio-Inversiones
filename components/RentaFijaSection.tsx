@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ComposedChart, Scatter, Line, XAxis, YAxis, Tooltip,
+  ComposedChart, Scatter, Line, XAxis, YAxis,
   CartesianGrid, ResponsiveContainer,
 } from 'recharts';
 import type { GrupoBono, BondPerformance } from '@/types';
@@ -33,35 +33,6 @@ function fmtDuration(v: number): string {
   return `${v.toFixed(2)} a.`;
 }
 
-interface TooltipPayload {
-  payload: BondPerformance;
-}
-
-function ScatterTooltip({ active, payload }: { active?: boolean; payload?: TooltipPayload[] }) {
-  if (!active || !payload?.length) return null;
-  // El tooltip es compartido por todas las series del ComposedChart: al pasar
-  // el cursor sobre la línea de tendencia, payload trae un TendenciaPunto
-  // (sin `grupo` ni `ticker`), no un BondPerformance — se ignora ese caso en
-  // vez de mostrar el tooltip para un punto que no es un bono real.
-  const b = payload.find((p) => p.payload?.grupo != null)?.payload;
-  if (!b) return null;
-  const meta = GRUPO_META[b.grupo];
-  return (
-    <div style={{
-      background: 'var(--card)', border: '1px solid var(--border)',
-      borderRadius: 8, padding: '10px 14px', fontSize: 12,
-      boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-    }}>
-      <p style={{ margin: '0 0 4px', fontWeight: 700, color: 'var(--text)' }}>{b.ticker}</p>
-      <p style={{ margin: '0 0 6px', color: meta.color, fontSize: 11 }}>{meta.label}{b.etiqueta ? ` · ${b.etiqueta}` : ''}</p>
-      <p style={{ margin: '2px 0', color: 'var(--text-sec)' }}>TIR: <strong>{fmtPct1(b.tir)}</strong></p>
-      <p style={{ margin: '2px 0', color: 'var(--text-sec)' }}>Duration: <strong>{fmtDuration(b.modifiedDuration)}</strong></p>
-      {b.parity != null && <p style={{ margin: '2px 0', color: 'var(--text-sec)' }}>Paridad: <strong>{fmtPct1(b.parity)}</strong></p>}
-      {b.tenenciaUsd != null && <p style={{ margin: '6px 0 0', color: 'var(--primary)', fontSize: 11 }}>En cartera</p>}
-    </div>
-  );
-}
-
 // Radio del punto: en cartera se resalta con un radio mayor (encoding secundario
 // a la posición en el eje, no solo color) para que se distinga sin depender del ojo.
 function radioDe(b: BondPerformance): number {
@@ -75,25 +46,73 @@ interface ScatterShapeProps {
   payload?: BondPerformance;
 }
 
-function ScatterPoint(props: unknown) {
-  const { cx, cy, fill, payload } = props as ScatterShapeProps;
-  if (cx == null || cy == null || !payload) return <g />;
-  return (
-    <g>
-      {/* Círculo invisible con radio ampliado: solo agranda el área de hover
-          para que el tooltip dispare sin tener que apuntar al punto visible
-          de 4-7px — Recharts detecta el punto activo por el shape renderizado,
-          no por proximidad real al dato. */}
-      <circle cx={cx} cy={cy} r={12} fill="transparent" />
-      <circle
-        cx={cx} cy={cy} r={radioDe(payload)}
-        fill={fill} fillOpacity={payload.tenenciaUsd ? 1 : 0.45}
-        stroke={payload.tenenciaUsd ? fill : 'none'}
-        strokeWidth={payload.tenenciaUsd ? 2 : 0}
-        strokeOpacity={0.4}
-      />
-    </g>
-  );
+// Ancho aproximado del label en px por caracter a fontSize 11 (Public Sans,
+// bold) — no hay forma de medir texto real en un shape SVG sin acceso al
+// DOM, así que se estima para centrar el fondo del label sin dejarlo
+// desalineado del texto.
+const ANCHO_POR_CARACTER = 6.2;
+
+/**
+ * Fábrica del shape del Scatter: <Scatter> de Recharts no tipa props propias
+ * en su `shape` (solo pasa cx/cy/fill/payload), así que `hoverTicker`/
+ * `onHover` no pueden viajar como props del <Scatter> sin romper los tipos
+ * de la librería. Se capturan por closure en su lugar — se recrea el shape
+ * en cada render de RentaFijaSection, que es aceptable porque el volumen de
+ * puntos es chico (decenas, no miles).
+ */
+function crearScatterPoint(hoverTicker: string | null, onHover: (b: BondPerformance | null) => void) {
+  return function ScatterPoint(props: unknown) {
+    const { cx, cy, fill, payload } = props as ScatterShapeProps;
+    if (cx == null || cy == null || !payload) return <g />;
+    const activo = hoverTicker === payload.ticker;
+    const r = radioDe(payload);
+    return (
+      <g
+        onMouseEnter={() => onHover(payload)}
+        onMouseLeave={() => onHover(null)}
+        style={{ cursor: 'pointer' }}
+      >
+        {/* Círculo invisible con radio ampliado: solo agranda el área de
+            hover para que el label dispare sin tener que apuntar al punto
+            visible de 4-7px. El label en sí lo maneja `hoverTicker` (estado
+            manual en RentaFijaSection) en vez del <Tooltip> de Recharts, que
+            en un ComposedChart con Scatter detecta por cercanía de
+            posición-X, no proximidad real 2D al punto — con varios bonos en
+            el mismo rango de duration pero distinta TIR, eso hacía casi
+            imposible acertarle al punto correcto. */}
+        <circle cx={cx} cy={cy} r={12} fill="transparent" />
+        <circle
+          cx={cx} cy={cy} r={r}
+          fill={fill} fillOpacity={payload.tenenciaUsd ? 1 : 0.45}
+          stroke={payload.tenenciaUsd ? fill : 'none'}
+          strokeWidth={payload.tenenciaUsd ? 2 : 0}
+          strokeOpacity={0.4}
+        />
+        {activo && (
+          <g style={{ pointerEvents: 'none' }}>
+            <rect
+              x={cx - (payload.ticker.length * ANCHO_POR_CARACTER) / 2 - 6}
+              y={cy - r - 22}
+              width={payload.ticker.length * ANCHO_POR_CARACTER + 12}
+              height={18}
+              rx={5}
+              fill="var(--card)"
+              stroke="var(--border)"
+            />
+            <text
+              x={cx} y={cy - r - 10}
+              textAnchor="middle"
+              fontSize={11}
+              fontWeight={700}
+              fill="var(--text)"
+            >
+              {payload.ticker}
+            </text>
+          </g>
+        )}
+      </g>
+    );
+  };
 }
 
 /** Resuelve un sistema lineal Ax=b de 3x3 por eliminación gaussiana con pivoteo parcial. */
@@ -162,6 +181,7 @@ type SortKey = 'ticker' | 'tir' | 'modifiedDuration' | 'parity';
 
 export default function RentaFijaSection({ tenencias }: Props) {
   const { data: perf, loading, error } = usePerformance(tenencias);
+  const [hoverBono, setHoverBono] = useState<BondPerformance | null>(null);
 
   // Siempre hay exactamente un grupo activo — nunca los 4 juntos, porque sus
   // TIR no son comparables entre sí (monedas/índices distintos). Al cargar,
@@ -365,7 +385,6 @@ export default function RentaFijaSection({ tenencias }: Props) {
                 tick={{ fill: 'var(--muted)', fontSize: 11 }}
                 tickLine={false} axisLine={false} width={44}
               />
-              <Tooltip content={<ScatterTooltip />} cursor={{ strokeDasharray: '3 3', stroke: 'var(--border)' }} />
               {tendencia.length > 0 && (
                 <Line
                   type="monotone"
@@ -387,7 +406,7 @@ export default function RentaFijaSection({ tenencias }: Props) {
                 name={GRUPO_META[filtroGrupo].label}
                 data={bonosFiltrados}
                 fill={GRUPO_META[filtroGrupo].color}
-                shape={ScatterPoint}
+                shape={crearScatterPoint(hoverBono?.ticker ?? null, setHoverBono)}
                 isAnimationActive={false}
               />
             </ComposedChart>
