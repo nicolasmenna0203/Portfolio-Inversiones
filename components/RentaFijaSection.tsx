@@ -66,6 +66,7 @@ function crearScatterPoint(hoverTicker: string | null, onHover: (b: BondPerforma
     if (cx == null || cy == null || !payload) return <g />;
     const activo = hoverTicker === payload.ticker;
     const r = radioDe(payload);
+    const texto = `${payload.ticker} · ${fmtPct1(payload.tir)}`;
     return (
       <g
         onMouseEnter={() => onHover(payload)}
@@ -91,9 +92,9 @@ function crearScatterPoint(hoverTicker: string | null, onHover: (b: BondPerforma
         {activo && (
           <g style={{ pointerEvents: 'none' }}>
             <rect
-              x={cx - (payload.ticker.length * ANCHO_POR_CARACTER) / 2 - 6}
+              x={cx - (texto.length * ANCHO_POR_CARACTER) / 2 - 6}
               y={cy - r - 22}
-              width={payload.ticker.length * ANCHO_POR_CARACTER + 12}
+              width={texto.length * ANCHO_POR_CARACTER + 12}
               height={18}
               rx={5}
               fill="var(--card)"
@@ -106,7 +107,7 @@ function crearScatterPoint(hoverTicker: string | null, onHover: (b: BondPerforma
               fontWeight={700}
               fill="var(--text)"
             >
-              {payload.ticker}
+              {texto}
             </text>
           </g>
         )}
@@ -369,15 +370,15 @@ export default function RentaFijaSection({ tenencias }: Props) {
         </div>
         <div style={{ height: 320 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart margin={{ top: 5, right: 16, left: 0, bottom: 0 }}>
+            <ComposedChart margin={{ top: 5, right: 16, left: 0, bottom: 20 }}>
               <CartesianGrid strokeDasharray="2 4" stroke="var(--border-subtle)" />
               <XAxis
                 type="number" dataKey="modifiedDuration" name="Duration"
-                domain={[0, rangoDuration[1]]} allowDataOverflow
+                domain={[0, rangoDuration[1] * 1.08]} allowDataOverflow
                 tickFormatter={(v) => v.toFixed(2)}
                 unit=" a." tick={{ fill: 'var(--muted)', fontSize: 11 }}
                 tickLine={false} axisLine={false}
-                label={{ value: 'Duration (años)', position: 'insideBottom', offset: -2, fill: 'var(--muted)', fontSize: 11 }}
+                label={{ value: 'Duration (años)', position: 'insideBottom', offset: -8, fill: 'var(--muted)', fontSize: 11 }}
               />
               <YAxis
                 type="number" dataKey="tir" name="TIR"
@@ -424,30 +425,60 @@ export default function RentaFijaSection({ tenencias }: Props) {
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <input
-              type="range"
-              aria-label="Duration mínima"
-              min={rangoActivo[0]} max={rangoActivo[1]}
-              step={(rangoActivo[1] - rangoActivo[0]) / 100 || 0.01}
-              value={rangoDuration[0]}
-              onChange={(e) => {
-                const v = Math.min(Number(e.target.value), rangoDuration[1]);
-                setRangoDuration([v, rangoDuration[1]]);
-              }}
-              style={{ flex: 1, accentColor: GRUPO_META[filtroGrupo].color }}
-            />
-            <input
-              type="range"
-              aria-label="Duration máxima"
-              min={rangoActivo[0]} max={rangoActivo[1]}
-              step={(rangoActivo[1] - rangoActivo[0]) / 100 || 0.01}
-              value={rangoDuration[1]}
-              onChange={(e) => {
-                const v = Math.max(Number(e.target.value), rangoDuration[0]);
-                setRangoDuration([rangoDuration[0], v]);
-              }}
-              style={{ flex: 1, accentColor: GRUPO_META[filtroGrupo].color }}
-            />
+            {/* Doble slider superpuesto sobre el mismo track (técnica estándar
+                de rango dual con <input type="range"> nativo, que no soporta
+                2 thumbs): ambos inputs ocupan el mismo espacio vía position
+                absolute (clase .dual-range en globals.css les saca el
+                pointer-events propio salvo en el thumb, así no bloquean el
+                drag entre sí ni tapan el track/segmento resaltado de abajo).
+                Antes estaban uno al lado del otro con flex, cada uno
+                mostrando su propio track 0-100% completo — se veía como una
+                barra partida al medio en vez de un único rango. */}
+            <div style={{ position: 'relative', flex: 1, height: 20, display: 'flex', alignItems: 'center' }}>
+              {/* El track pintado a mano va con inset 7px (radio del thumb,
+                  ver .dual-range::-webkit-slider-thumb en globals.css): el
+                  navegador reserva ese margen en cada extremo para que el
+                  thumb nunca se salga del input, así que su centro real
+                  recorre [7px, width-7px], no [0, width]. Sin este ajuste el
+                  track pintado llega hasta el borde pero el thumb del
+                  extremo se queda unos px antes — se ve desalineado. */}
+              <div style={{
+                position: 'absolute', left: 7, right: 7, height: 4, borderRadius: 2,
+                background: 'var(--border)', pointerEvents: 'none',
+              }} />
+              <div style={{
+                position: 'absolute', height: 4, borderRadius: 2,
+                background: GRUPO_META[filtroGrupo].color, pointerEvents: 'none',
+                left: `calc(7px + (100% - 14px) * ${(rangoDuration[0] - rangoActivo[0]) / (rangoActivo[1] - rangoActivo[0] || 1)})`,
+                right: `calc(7px + (100% - 14px) * ${1 - (rangoDuration[1] - rangoActivo[0]) / (rangoActivo[1] - rangoActivo[0] || 1)})`,
+              }} />
+              <input
+                type="range"
+                className="dual-range"
+                aria-label="Duration mínima"
+                min={rangoActivo[0]} max={rangoActivo[1]}
+                step={(rangoActivo[1] - rangoActivo[0]) / 100 || 0.01}
+                value={rangoDuration[0]}
+                onChange={(e) => {
+                  const v = Math.min(Number(e.target.value), rangoDuration[1]);
+                  setRangoDuration([v, rangoDuration[1]]);
+                }}
+                style={{ position: 'absolute', width: '100%', margin: 0, accentColor: GRUPO_META[filtroGrupo].color }}
+              />
+              <input
+                type="range"
+                className="dual-range"
+                aria-label="Duration máxima"
+                min={rangoActivo[0]} max={rangoActivo[1]}
+                step={(rangoActivo[1] - rangoActivo[0]) / 100 || 0.01}
+                value={rangoDuration[1]}
+                onChange={(e) => {
+                  const v = Math.max(Number(e.target.value), rangoDuration[0]);
+                  setRangoDuration([rangoDuration[0], v]);
+                }}
+                style={{ position: 'absolute', width: '100%', margin: 0, accentColor: GRUPO_META[filtroGrupo].color }}
+              />
+            </div>
             {(rangoDuration[0] !== rangoActivo[0] || rangoDuration[1] !== rangoActivo[1]) && (
               <button
                 onClick={() => setRangoDuration(rangoActivo)}

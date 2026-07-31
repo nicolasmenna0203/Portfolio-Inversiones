@@ -557,6 +557,20 @@ input[type="range"]::-moz-range-track {
   input[type="range"]::-moz-range-track     { background: transparent; }
 }
 
+/* Rango dual: 2 <input type="range"> superpuestos con position:absolute sobre
+   el mismo track (el elemento nativo no soporta 2 thumbs). El input entero
+   lleva pointer-events:none para no bloquear el drag del otro thumb ni tapar
+   el track/segmento resaltado que pinta el contenedor por debajo; solo el
+   thumb recupera pointer-events para poder arrastrarlo. Track propio oculto
+   (transparent) porque el fondo visible lo pinta el contenedor, no el input. */
+.dual-range {
+  background: transparent !important;
+  pointer-events: none;
+}
+.dual-range::-webkit-slider-thumb { pointer-events: auto; }
+.dual-range::-moz-range-thumb     { pointer-events: auto; }
+.dual-range::-moz-range-track     { background: transparent; }
+
 /* ── Recharts overrides ─────────────────────────────────────── */
 .recharts-tooltip-wrapper .recharts-default-tooltip {
   background: var(--card) !important;
