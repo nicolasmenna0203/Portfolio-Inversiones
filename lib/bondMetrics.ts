@@ -8,7 +8,10 @@ import { MAPEO_BONOS_ARG } from './bonosArg';
 // Mismo patrón de scraping que ya usa bonosArg.ts para /proximos-pagos.
 
 /** Agrupamiento por tipo de tasa — TIRs de distinto grupo no son comparables entre sí. */
-export type GrupoBono = 'USD' | 'CER' | 'ARS_TASA' | 'DOLLAR_LINKED';
+export type GrupoBono = 'USD' | 'CER' | 'ARS_TASA' | 'DOLLAR_LINKED' | 'BOPREAL';
+
+// Tickers puntuales excluidos a pedido (no una familia entera): BDC28.
+const TICKERS_EXCLUIDOS = new Set(['BDC28']);
 
 export interface BondMetric {
   ticker: string;          // símbolo cartera (ej. "AL30") si hay match en MAPEO_BONOS_ARG, si no el de bonistas
@@ -147,6 +150,15 @@ export async function fetchBondMetrics(): Promise<Map<string, BondMetric>> {
     // calculado. Todos ensuciaban la curva o el universo con ruido.
     if (r.ticker.includes('_')) continue;
     if (r.end_date == null || r.days_to_finish == null) continue;
+    // Exclusiones puntuales de tickers específicos (no de toda una familia).
+    if (TICKERS_EXCLUIDOS.has(r.ticker)) continue;
+    // BOPREAL: bonistas expone el mismo instrumento bajo 2 familias de
+    // ticker — "BPOx7"/"BPOx8" (especie Pesos, sin sufijo D/C) y "BPx7D"/
+    // "BPx7C"/"BPx8D"/"BPx8C" (especies D/Cable del mismo bono, sin la "O").
+    // Mismo vencimiento y cupón que su par BPOx — no son bonos aparte, así
+    // que se descarta la familia sin "O" para no duplicar el universo (se
+    // conserva "BPOx7"/"BPOx8", que es la que ya se usaba en pantalla).
+    if (/^BP[A-D][78][DC]?$/.test(r.ticker) && !/^BPO/.test(r.ticker)) continue;
 
     // Cada bono USD hard-dollar cotiza en 3 especies del mismo instrumento
     // (ej. AL30 en Pesos, AL30D en MEP/cable, AL30C en Cable/Contado con
@@ -185,27 +197,63 @@ export async function fetchBondMetrics(): Promise<Map<string, BondMetric>> {
     // "USS" = hard dollar (ley cable) → USD. "CER" = ajustado por inflación.
     // "USDL" = dollar-linked: sigue al tipo de cambio, no a la inflación ni a
     // una tasa en pesos — grupo aparte, no comparable con los otros tres.
-    // Duales: pagan el máximo entre dos piernas. index "DualCER" = CER/TAMAR
-    // (ej. TXMJ0) — con la premisa de mercado de que gana la pata CER, van al
-    // grupo CER con etiqueta "CER/TAMAR". index "Dual" a secas = Fija/TAMAR
-    // (ej. TTS26, TTD26, sin componente CER) — quedan en ARS_TASA con
-    // etiqueta "dual Fija/TAMAR", no CER. bond_family "DUAL*" NO alcanza como
-    // discriminador (TXMJ9 es DUAL-CER-TAMAR pero index "Dual", sin CER).
-    const esDualCer = r.index === 'DualCER';
-    const esDualFijaTamar = r.index === 'Dual';
+    // Duales: pagan el máximo entre dos piernas, pero bonistas.com NUNCA
+    // separa la TIR de cada pierna — todos los campos candidatos (tir_val,
+    // tir_t0, ttir, uptir) vienen null/0 en los 18 registros duales del
+    // dataset, solo hay una TIR "efectiva" del instrumento completo (que ya
+    // asume qué pata gana). Por eso ningún dual —ni los CER/TAMAR (TXMJ0,
+    // TXMJ8, TXMD8, TXMJ9...) ni los Fija/TAMAR (TTS26, TTD26)— va al grupo
+    // CER: mezclarían una TIR no comparable con la de los CER puros (TX26,
+    // TX28...) y arruinarían la curva/regresión de ese grupo. Todos los
+    // duales quedan en ARS_TASA, distinguidos entre sí solo por `etiqueta`
+    // ("CER/TAMAR" vs. "Fija/TAMAR").
+    //
+    // index "DualCER" = CER/TAMAR (ej. TXMJ0). index "Dual" a secas
+    // normalmente es Fija/TAMAR (ej. TTS26, TTD26), salvo TXMJ9: bonistas le
+    // pone index "Dual" y una description de texto "tasa fija y TAMAR" que
+    // son ERRATA de carga de esa fuente — TXMJ9 es un dual CER/TAMAR real
+    // (paga el máximo entre capital ajustado por CER, o TAMAR + 3% margen;
+    // confirmado por prensa especializada, no solo por bonistas). Su
+    // bond_family ("DUAL-CER-TAMAR") sí es correcto, así que para
+    // desambiguar el caso "Dual" se usa bond_family como señal adicional en
+    // vez de confiar ciegamente en index/description.
+    const esDualCer = r.index === 'DualCER' || (r.index === 'Dual' && r.bond_family === 'DUAL-CER-TAMAR');
+    const esDualFijaTamar = r.index === 'Dual' && !esDualCer;
+    // BOPREAL (BCRA, deuda comercial con importadores) cotiza en especie
+    // hard-dollar igual que los soberanos (index "USS"), pero es un emisor y
+    // un riesgo de crédito distintos — no comparable en la misma curva que
+    // AL30/GD30/AE38. bond_family lo identifica sin ambigüedad, pero varía
+    // según la especie del ticker ("BOPREAL-PESOS" en BPOx7/BPOx8 sin
+    // sufijo, "BOPREAL"/"BOPREAL-CABLE" en la familia BPx7D/BPx7C sin la
+    // "O" — ya excluida más arriba por duplicar el mismo instrumento), así
+    // que se matchea por prefijo en vez de una lista exacta de valores.
+    const esBopreal = r.bond_family?.startsWith('BOPREAL') ?? false;
     const grupo: GrupoBono =
+      esBopreal ? 'BOPREAL' :
       r.index === 'USS' ? 'USD' :
-      r.index === 'CER' || esDualCer ? 'CER' :
       r.index === 'USDL' ? 'DOLLAR_LINKED' :
+      r.index === 'CER' ? 'CER' :
       'ARS_TASA';
+    // Dentro de ARS_TASA no dual, el `index` distingue el tipo de tasa que
+    // rige cada bono — no son comparables entre sí (Lecap a tasa fija vs.
+    // Boncap TAMAR vs. Badlar), así que se etiquetan todos, no solo los
+    // duales: "Fijo" (Lecap/Boncap, TEM capitalizable) → "Fija", "Tamar"
+    // (TAMAR + spread) → "TAMAR", "Badlar" → "Badlar".
+    const etiquetaTasa =
+      esDualCer ? 'CER/TAMAR' :
+      esDualFijaTamar ? 'Fija/TAMAR' :
+      grupo === 'ARS_TASA' && r.index === 'Fijo' ? 'Fija' :
+      grupo === 'ARS_TASA' && r.index === 'Tamar' ? 'TAMAR' :
+      grupo === 'ARS_TASA' && r.index === 'Badlar' ? 'Badlar' :
+      null;
 
     metrics.set(ticker, {
       ticker,
       tickerCartera,
       bondFamily: r.bond_family ?? '',
-      moneda: grupo === 'USD' ? 'USD' : 'ARS',
+      moneda: grupo === 'USD' || grupo === 'BOPREAL' ? 'USD' : 'ARS',
       grupo,
-      etiqueta: esDualCer ? 'CER/TAMAR' : esDualFijaTamar ? 'Fija/TAMAR' : null,
+      etiqueta: etiquetaTasa,
       tir: r.tir,
       tna: r.tna,
       modifiedDuration: r.modified_duration,

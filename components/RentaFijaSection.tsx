@@ -22,8 +22,9 @@ const GRUPO_META: Record<GrupoBono, { label: string; color: string; colorDark: s
   CER:            { label: 'CER (ajustado inflación)', color: '#eb6834', colorDark: '#d95926' },
   ARS_TASA:       { label: 'LECAP / Dual / Tamar / Badlar', color: '#1baf7a', colorDark: '#199e70' },
   DOLLAR_LINKED:  { label: 'Dollar-linked', color: '#4a3aa7', colorDark: '#9085e9' },
+  BOPREAL:        { label: 'BOPREAL (BCRA)', color: '#eda100', colorDark: '#c98500' },
 };
-const GRUPO_ORDEN: GrupoBono[] = ['USD', 'CER', 'ARS_TASA', 'DOLLAR_LINKED'];
+const GRUPO_ORDEN: GrupoBono[] = ['USD', 'CER', 'ARS_TASA', 'DOLLAR_LINKED', 'BOPREAL'];
 
 function fmtPct1(v: number): string {
   return `${(v * 100).toFixed(1)}%`;
@@ -60,13 +61,36 @@ const ANCHO_POR_CARACTER = 6.2;
  * en cada render de RentaFijaSection, que es aceptable porque el volumen de
  * puntos es chico (decenas, no miles).
  */
-function crearScatterPoint(hoverTicker: string | null, onHover: (b: BondPerformance | null) => void) {
+// Márgenes del <ComposedChart> (margin left:0/right:16 + YAxis width:44) —
+// el área de plot real no arranca en x=0 del SVG ni termina en su ancho
+// total, así que clampear el label contra esos bordes lo dejaría todavía
+// fuera del área visible.
+const CHART_MARGEN_IZQ = 44;
+const CHART_MARGEN_DER = 16;
+
+function crearScatterPoint(hoverTicker: string | null, onHover: (b: BondPerformance | null) => void, chartWidth: number) {
   return function ScatterPoint(props: unknown) {
     const { cx, cy, fill, payload } = props as ScatterShapeProps;
     if (cx == null || cy == null || !payload) return <g />;
     const activo = hoverTicker === payload.ticker;
     const r = radioDe(payload);
-    const texto = `${payload.ticker} · ${fmtPct1(payload.tir)}`;
+    // Dentro de un mismo grupo/curva (ej. ARS_TASA) conviven subtipos de tasa
+    // no comparables entre sí (Fija, TAMAR, Badlar, CER/TAMAR) — sin la
+    // etiqueta en el label del hover, un bono TAMAR y uno Badlar se ven
+    // idénticos hasta bajar la vista a la tabla.
+    const texto = payload.etiqueta
+      ? `${payload.ticker} ${payload.etiqueta} · ${fmtPct1(payload.tir)}`
+      : `${payload.ticker} · ${fmtPct1(payload.tir)}`;
+    const anchoLabel = texto.length * ANCHO_POR_CARACTER + 12;
+    // Clamp del label contra el área de plot real: sin esto, un punto cerca
+    // del borde izq/der (o un texto largo, ej. "S31L6 Fija · 25.0%") dibuja
+    // el rect centrado en cx sin importar si eso lo saca del SVG visible —
+    // el texto se mueve junto con el rect (mismo x + mitad del ancho) en vez
+    // de quedar centrado en cx cuando el rect se desplazó para no salirse.
+    const limiteIzq = CHART_MARGEN_IZQ;
+    const limiteDer = (chartWidth || Infinity) - CHART_MARGEN_DER;
+    const xRectIdeal = cx - anchoLabel / 2 - 6;
+    const xRect = Math.min(Math.max(xRectIdeal, limiteIzq), limiteDer - anchoLabel);
     return (
       <g
         onMouseEnter={() => onHover(payload)}
@@ -92,16 +116,16 @@ function crearScatterPoint(hoverTicker: string | null, onHover: (b: BondPerforma
         {activo && (
           <g style={{ pointerEvents: 'none' }}>
             <rect
-              x={cx - (texto.length * ANCHO_POR_CARACTER) / 2 - 6}
+              x={xRect}
               y={cy - r - 22}
-              width={texto.length * ANCHO_POR_CARACTER + 12}
+              width={anchoLabel}
               height={18}
               rx={5}
               fill="var(--card)"
               stroke="var(--border)"
             />
             <text
-              x={cx} y={cy - r - 10}
+              x={xRect + anchoLabel / 2} y={cy - r - 10}
               textAnchor="middle"
               fontSize={11}
               fontWeight={700}
@@ -184,7 +208,22 @@ export default function RentaFijaSection({ tenencias }: Props) {
   const { data: perf, loading, error } = usePerformance(tenencias);
   const [hoverBono, setHoverBono] = useState<BondPerformance | null>(null);
 
-  // Siempre hay exactamente un grupo activo — nunca los 4 juntos, porque sus
+  // Ancho real del gráfico, para clampear el label del punto activo contra
+  // los bordes — sin esto, un bono cerca del extremo izquierdo/derecho (o
+  // con ticker+etiqueta largos, ej. "S31L6 Fija · 25.0%") dibuja el
+  // rectángulo del label centrado en cx sin importar si eso lo saca del área
+  // visible del SVG.
+  const chartWrapRef = useRef<HTMLDivElement>(null);
+  const [chartWidth, setChartWidth] = useState(0);
+  useEffect(() => {
+    const el = chartWrapRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => setChartWidth(entry.contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Siempre hay exactamente un grupo activo — nunca todos juntos, porque sus
   // TIR no son comparables entre sí (monedas/índices distintos). Al cargar,
   // se preselecciona el primer grupo con posición en cartera (una sola vez).
   const [filtroGrupo, setFiltroGrupo] = useState<GrupoBono>('USD');
@@ -236,6 +275,21 @@ export default function RentaFijaSection({ tenencias }: Props) {
     () => bonosDelGrupo.filter((b) => b.modifiedDuration >= rangoDuration[0] && b.modifiedDuration <= rangoDuration[1]),
     [bonosDelGrupo, rangoDuration],
   );
+
+  // Dominio del eje Y ajustado a la TIR real de los bonos visibles, con 12%
+  // de padding a cada lado — sin esto Recharts arranca el eje en 0 por
+  // default (todos los valores son positivos), y en grupos como LECAP/Dual/
+  // Tamar/Badlar donde la TIR se mueve toda entre ~27%-36%, eso amontona la
+  // curva entera contra el techo del gráfico dejando la mitad inferior vacía.
+  const dominioTir = useMemo((): [number, number] => {
+    if (bonosFiltrados.length === 0) return [0, 1];
+    const tires = bonosFiltrados.map((b) => b.tir);
+    const min = Math.min(...tires);
+    const max = Math.max(...tires);
+    if (min === max) return [min - 0.01, max + 0.01];
+    const padding = (max - min) * 0.12;
+    return [min - padding, max + padding];
+  }, [bonosFiltrados]);
 
   // Línea de tendencia (regresión cuadrática TIR ~ duration, con fallback
   // lineal si hay pocos puntos) sobre los bonos dentro del rango de duration
@@ -368,7 +422,7 @@ export default function RentaFijaSection({ tenencias }: Props) {
             Un punto por bono · puntos grandes = posición en tu cartera · línea = tendencia del grupo (ajuste cuadrático) · acotado al rango de duration seleccionado
           </span>
         </div>
-        <div style={{ height: 320 }}>
+        <div ref={chartWrapRef} style={{ height: 320 }}>
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart margin={{ top: 5, right: 16, left: 0, bottom: 20 }}>
               <CartesianGrid strokeDasharray="2 4" stroke="var(--border-subtle)" />
@@ -382,6 +436,7 @@ export default function RentaFijaSection({ tenencias }: Props) {
               />
               <YAxis
                 type="number" dataKey="tir" name="TIR"
+                domain={dominioTir} allowDataOverflow
                 tickFormatter={(v) => `${(v * 100).toFixed(0)}%`}
                 tick={{ fill: 'var(--muted)', fontSize: 11 }}
                 tickLine={false} axisLine={false} width={44}
@@ -407,7 +462,7 @@ export default function RentaFijaSection({ tenencias }: Props) {
                 name={GRUPO_META[filtroGrupo].label}
                 data={bonosFiltrados}
                 fill={GRUPO_META[filtroGrupo].color}
-                shape={crearScatterPoint(hoverBono?.ticker ?? null, setHoverBono)}
+                shape={crearScatterPoint(hoverBono?.ticker ?? null, setHoverBono, chartWidth)}
                 isAnimationActive={false}
               />
             </ComposedChart>

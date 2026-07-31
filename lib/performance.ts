@@ -1,7 +1,7 @@
 import type { BondPerformance, GrupoBono, GrupoPonderado, PerformanceResponse, SensibilidadTir } from '@/types';
 import { fetchBondMetrics } from './bondMetrics';
 
-const GRUPOS: GrupoBono[] = ['USD', 'CER', 'ARS_TASA', 'DOLLAR_LINKED'];
+const GRUPOS: GrupoBono[] = ['USD', 'CER', 'ARS_TASA', 'DOLLAR_LINKED', 'BOPREAL'];
 const SHOCKS = [1, 2, 3, 5, 10];
 
 /**

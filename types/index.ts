@@ -153,7 +153,7 @@ export interface SensibilidadTir {
 }
 
 /** Agrupamiento por tipo de tasa — TIRs de distinto grupo no son comparables entre sí. */
-export type GrupoBono = 'USD' | 'CER' | 'ARS_TASA' | 'DOLLAR_LINKED';
+export type GrupoBono = 'USD' | 'CER' | 'ARS_TASA' | 'DOLLAR_LINKED' | 'BOPREAL';
 
 export interface BondPerformance {
   ticker: string;
