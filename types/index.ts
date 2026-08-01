@@ -220,10 +220,13 @@ export interface FciResponse {
 export interface CarryTradeItem {
   ticker: string;
   bondFamily: string;
+  precio: number | null;      // último precio conocido, en ARS
   tir: number;               // TIR efectiva anual en pesos, tanto por uno
   tna: number;
   vencimiento: string;        // "YYYY-MM-DD"
   diasAlVencimiento: number;
+  /** Precio proyectado al vencimiento: precio * (1+retornoDirectoArs). null si no hay precio. */
+  prFinish: number | null;
   /** Retorno directo en pesos si se mantiene hasta el vencimiento: (1+TIR)^(días/365) - 1. */
   retornoDirectoArs: number;
   /** Tipo de cambio MEP al cual, si se devalúa por encima, el carry pierde contra quedarse en dólares. */
@@ -232,6 +235,10 @@ export interface CarryTradeItem {
   devaluacionBreakeven: number;
   /** Retorno directo en USD dado el MEP de entrada/salida ingresados por el usuario; null si no hay MEP cargado. */
   retornoDirectoUsd: number | null;
+  /** Retorno en USD por escenario de MEP de salida fijo (1400/1500/1600) y el target custom; null sin MEP de entrada. */
+  carryPorTarget: Record<'t1400' | 't1500' | 't1600' | 'custom', number | null>;
+  /** Retorno en USD si el MEP de salida termina en el techo de banda cambiaria proyectado a esa fecha; null sin MEP de entrada. */
+  bandaSuperior: number | null;
   tenenciaUsd?: number;
 }
 

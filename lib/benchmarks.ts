@@ -103,7 +103,7 @@ function mesKeyToLabel(mesKey: string): string {
   const ts = Date.UTC(y, m - 1, 1);
   const d = new Date(ts);
   const mes = d.toLocaleString('es-AR', { month: 'short', timeZone: 'UTC' });
-  return `${mes.charAt(0).toUpperCase() + mes.slice(1)}-${y}`;
+  return `${mes}-${String(y).slice(2)}`;
 }
 
 export function mesKeyToTs(mesKey: string): number {

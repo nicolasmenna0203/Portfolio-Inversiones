@@ -60,13 +60,13 @@ export function parseFechaMes(s: string): number | null {
 }
 
 /**
- * Formatea un timestamp a "Mar-2024"
+ * Formatea un timestamp a "mar-24"
  */
 export function formatMesLabel(ts: number): string {
   const d = new Date(ts);
   const mes = d.toLocaleString('es-AR', { month: 'short', timeZone: 'UTC' });
-  const anio = d.getUTCFullYear();
-  return `${mes.charAt(0).toUpperCase() + mes.slice(1)}-${anio}`;
+  const anio = String(d.getUTCFullYear()).slice(2);
+  return `${mes}-${anio}`;
 }
 
 /**
