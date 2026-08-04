@@ -78,7 +78,7 @@ function parseMovimientosText(fullText: string): ParsedMovimientos {
   // luego la fila cierra con el par "ARS_MONTO USD_MONTO*?" (ese orden siempre, según el
   // encabezado de columnas). No se puede anclar con $: el chunk puede arrastrar el header
   // de la página siguiente pegado al final sin espacio útil de por medio.
-  const chunkRegex = /^(\d{2}-\d{2}-\d{4})\s+(Orden De Pago(?:\s+Usd)?|Recibo De Cobro)\s+-\s+\d+.*?\s+[-\d.,]+\s+[-\d.,]+\*?\s+([-\d.,]+)\*?(?:\s|$)/is;
+  const chunkRegex = /^(\d{2}-\d{2}-\d{4})\s+(Orden De Pago(?:\s+Usd)?|Recibo De Cobro)\s+-\s+\d+[\s\S]*?\s+[-\d.,]+\s+[-\d.,]+\*?\s+([-\d.,]+)\*?(?:\s|$)/i;
 
   for (const chunk of chunks) {
     const m = chunkRegex.exec(chunk.trim());
