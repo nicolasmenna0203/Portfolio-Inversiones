@@ -67,11 +67,23 @@ function parseMovimientosText(fullText: string): ParsedMovimientos {
 
   const rows: MovimientoRow[] = [];
 
-  // Regex: fecha + tipo (Orden De Pago / Recibo De Cobro) + resto de la línea + número USD al final
-  const rowRegex = /(\d{2}-\d{2}-\d{4})\s+(Orden De Pago(?:\s+Usd)?|Recibo De Cobro)\s+-\s+\d+.*?\s+([-\d.,]+)\*?\s*$/gim;
+  // unpdf no garantiza saltos de línea limpios por fila (el texto de una fila puede
+  // quedar corrido con el de la siguiente). Por eso no anclamos por fin de línea:
+  // cada fila arranca con "DD-MM-YYYY", así que partimos la sección en bloques que
+  // van desde una fecha hasta la próxima (o el final de la sección).
+  const dateSplitRegex = /(?=\d{2}-\d{2}-\d{4}\s)/g;
+  const chunks = section.split(dateSplitRegex).filter((c) => /^\d{2}-\d{2}-\d{4}\s/.test(c));
 
-  let m: RegExpExecArray | null;
-  while ((m = rowRegex.exec(section)) !== null) {
+  // Dentro de cada bloque: fecha + tipo (Orden De Pago / Recibo De Cobro) + comprobante,
+  // luego la fila cierra con el par "ARS_MONTO USD_MONTO*?" (ese orden siempre, según el
+  // encabezado de columnas). No se puede anclar con $: el chunk puede arrastrar el header
+  // de la página siguiente pegado al final sin espacio útil de por medio.
+  const chunkRegex = /^(\d{2}-\d{2}-\d{4})\s+(Orden De Pago(?:\s+Usd)?|Recibo De Cobro)\s+-\s+\d+.*?\s+[-\d.,]+\s+[-\d.,]+\*?\s+([-\d.,]+)\*?(?:\s|$)/is;
+
+  for (const chunk of chunks) {
+    const m = chunkRegex.exec(chunk.trim());
+    if (!m) continue;
+
     const fecha = formatFecha(m[1]);
     const concepto = m[2].toLowerCase();
     const usdRaw = Math.abs(parseArgNum(m[3]));
