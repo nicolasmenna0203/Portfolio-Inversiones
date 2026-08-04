@@ -60,13 +60,15 @@ function parseMovimientosText(fullText: string): ParsedMovimientos {
   // Patrón de línea en sección INCREMENTOS:
   // "06-04-2026 Orden De Pago - 14484527 ARS 1.427,88 -900.000,00 -630,31*"
   // "07-04-2026 Recibo De Cobro - 14627953 ARS 1.431,03 1.600.000,00 1.118,08*"
+  // "13-07-2026 Orden De Pago Usd - 20740274 USD 1.519,59 -37.989,75* -25"
   // Columnas: FECHA LIQ | COMPROBANTE | ESPECIE | TIPO DE CAMBIO | ARS | USD
-  // El monto USD es el último número de la línea (puede tener * al final)
+  // ESPECIE varía (ARS, USD, "Dólar estadounidense", etc.) — no se puede fijar en el regex.
+  // El monto USD es siempre el último número de la línea (puede tener * al final)
 
   const rows: MovimientoRow[] = [];
 
-  // Regex: fecha + tipo (Orden De Pago / Recibo De Cobro) + número USD al final
-  const rowRegex = /(\d{2}-\d{2}-\d{4})\s+(Orden De Pago|Recibo De Cobro)\s+-\s+\d+\s+ARS\s+[\d.,]+\s+[-\d.,]+\s+([-\d.,]+)\*?/gi;
+  // Regex: fecha + tipo (Orden De Pago / Recibo De Cobro) + resto de la línea + número USD al final
+  const rowRegex = /(\d{2}-\d{2}-\d{4})\s+(Orden De Pago(?:\s+Usd)?|Recibo De Cobro)\s+-\s+\d+.*?\s+([-\d.,]+)\*?\s*$/gim;
 
   let m: RegExpExecArray | null;
   while ((m = rowRegex.exec(section)) !== null) {
