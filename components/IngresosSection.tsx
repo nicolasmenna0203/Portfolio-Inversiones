@@ -82,19 +82,13 @@ export default function IngresosSection({ hideValues }: Props) {
     });
   }, [resp]);
 
-  // Ticks del eje X espaciados uniformemente: con muchos meses, Recharts
-  // (interval="preserveStartEnd"/minTickGap) decide qué etiquetas mostrar según
-  // el ancho medido del texto, lo que amontona etiquetas en el medio del eje.
-  // Acá se elige explícitamente 1 de cada N meses, siempre parejo.
-  const xTicks = useMemo(() => {
-    const meses = chartData.map((d) => d.mes as string);
-    if (meses.length <= 8) return meses;
-    const paso = Math.ceil(meses.length / 8);
-    const ticks = meses.filter((_, i) => i % paso === 0);
-    const ultimo = meses[meses.length - 1];
-    if (ticks[ticks.length - 1] !== ultimo) ticks.push(ultimo);
-    return ticks;
-  }, [chartData]);
+  // Cada cuántas barras mostrar una etiqueta en el eje X: con muchos meses,
+  // mostrar todas las etiquetas las superpone. En vez de pasarle a Recharts una
+  // lista de `ticks` explícita (que en un eje de categorías puede desalinear el
+  // texto respecto a la barra que corresponde), se deja que Recharts posicione
+  // cada tick según su índice real y solo se vacía el texto de los que no tocan
+  // — así la posición geométrica del tick siempre coincide con su barra.
+  const xTickStep = chartData.length > 8 ? Math.ceil(chartData.length / 8) : 1;
 
   const kpis = useMemo(() => {
     if (!resp || resp.ingresos.length === 0) return null;
@@ -160,12 +154,13 @@ export default function IngresosSection({ hideValues }: Props) {
 
       <div style={{
         background: 'var(--card)', border: '1px solid var(--border)',
-        borderRadius: 12, padding: '16px 20px', flex: 1, minHeight: 280,
+        borderRadius: 12, padding: '16px 20px', flex: 1, minHeight: 340,
+        display: 'flex', flexDirection: 'column',
       }}>
-        <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--muted)', margin: '0 0 12px' }}>
+        <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--muted)', margin: '0 0 12px', flexShrink: 0 }}>
           Ingresos por mes y empleador (ARS)
         </p>
-        <ResponsiveContainer width="100%" height={280}>
+        <ResponsiveContainer width="100%" height={280} minHeight={280}>
           <BarChart data={chartData} barCategoryGap="20%">
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" vertical={false} />
             <XAxis
@@ -173,8 +168,11 @@ export default function IngresosSection({ hideValues }: Props) {
               tick={{ fontSize: 11, fill: 'var(--muted)' }}
               axisLine={{ stroke: 'var(--border)' }}
               tickLine={false}
-              ticks={xTicks}
               interval={0}
+              tickFormatter={(value, index) => {
+                const esUltimo = index === chartData.length - 1;
+                return (index % xTickStep === 0 || esUltimo) ? value : '';
+              }}
             />
             <YAxis
               tick={{ fontSize: 11, fill: 'var(--muted)' }}
