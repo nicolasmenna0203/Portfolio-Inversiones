@@ -14,28 +14,49 @@ function formatFecha(ddmmyy: string): string {
 }
 
 /**
+ * Prefijos de trámite que anteceden al nombre del empleador (o lo reemplazan
+ * cuando el banco no informa razón social) según el canal de pago. Santander
+ * ya usó al menos tres formatos distintos para el mismo tipo de acreditación
+ * ("Acreditacion de haberes", "Acreditacion haberes debin", "Pago haberes
+ * interbanking externa") — se listan por canal en vez de intentar adivinar
+ * un patrón único, porque el banco los cambia sin aviso.
+ */
+const PREFIJOS_TRAMITE = [
+  /\binterbanking\s+externa\b/gi,
+  /\bid\s+debin\s+\S+/gi, // ID alfanumérico del DEBIN, no tiene valor como nombre
+  /\bdebin\b/gi,
+];
+
+/**
  * Limpia el nombre del empleador extraído de la línea de acreditación de haberes.
- * El texto trae basura pegada: un código de lote ("240130007"), a veces un
- * dígito de sufijo pegado al final ("renault argentina sa2"), el CUIT del
- * empleador antes o después del nombre, y en pagos por DEBIN un ID de
- * transacción alfanumérico ("Id debin d4ro172vp1rr8p802kj3qe") en vez de nombre.
+ * El texto trae basura pegada: prefijos de trámite (ver PREFIJOS_TRAMITE), un
+ * código de lote ("240130007"), a veces un dígito de sufijo pegado al final
+ * ("renault argentina sa2"), y el CUIT del empleador. El nombre, cuando existe,
+ * puede ir antes O después del CUIT según el canal de pago — no se asume una
+ * posición fija, solo se remueve todo lo puramente numérico/ruido y se conserva
+ * cualquier texto alfabético a los lados.
  *
- * Si tras limpiar no queda ningún nombre legible (típico en DEBIN, donde el
+ * Si tras limpiar no queda ningún texto alfabético (típico en DEBIN, donde el
  * banco no informa la razón social), se usa "CUIT <número>" como placeholder:
  * así la fila no se descarta y el usuario puede corregirla en el paso de
  * "empleador nuevo" antes de confirmar la carga.
  */
 export function limpiarEmpleador(raw: string): string {
   let s = raw.trim();
+  for (const p of PREFIJOS_TRAMITE) s = s.replace(p, ' ');
+
   const cuitMatch = s.match(/\b(\d{2}-?\d{8}-?\d)\b/);
-  // ID de transacción DEBIN: alfanumérico largo sin espacios, sin valor como nombre.
-  s = s.replace(/\bid\s+debin\s+\S+/gi, ' ');
   // CUIT (11 dígitos, con o sin guiones) en cualquier posición
   s = s.replace(/\b\d{2}-?\d{8}-?\d\b/g, ' ');
   // "cuit" suelto
   s = s.replace(/\bcuit\b/gi, ' ');
-  // Código de lote: 6+ dígitos pegados al inicio del nombre (ej. "240130007renault...")
-  s = s.replace(/\b\d{6,}/g, ' ');
+  // Código de lote/comprobante: 5+ dígitos, pegados a una palabra o sueltos
+  // (ej. "240130007renault...", o el comprobante fragmentado "02 30851 67").
+  s = s.replace(/\d{5,}/g, ' ');
+  // Grupos cortos de solo dígitos sueltos entre espacios (ej. "02", "67" del
+  // comprobante fragmentado) — pero no números pegados a letras, esos se tratan
+  // aparte para no comerse un nombre real que empiece con dígito.
+  s = s.replace(/(?<=\s|^)\d{1,4}(?=\s|$)/g, ' ');
   // Dígito de sufijo pegado a una palabra (ej. "argentina sa2" → "argentina sa")
   s = s.replace(/([a-záéíóúñ])\d+\b/gi, '$1');
   s = s.replace(/\s+/g, ' ').trim();
@@ -61,18 +82,23 @@ export interface ParsedHaberes {
 /**
  * Extrae acreditaciones de haberes de un resumen de cuenta bancario (formato
  * Santander "SuperCuenta"/"Infinity" verificado). Busca líneas dentro de
- * "Movimientos en pesos" y "Movimientos en dólares" que contienen
- * "Acreditacion de haberes" (transferencia directa) o "Acreditacion haberes
- * debin" (débito inmediato, sin "de" y sin nombre de empleador legible).
+ * "Movimientos en pesos" y "Movimientos en dólares" que contienen la palabra
+ * "haberes" en el concepto del movimiento — sin fijar el texto exacto del
+ * concepto, porque Santander ya usó al menos tres formatos distintos para el
+ * mismo tipo de acreditación:
  *
- * Formato de línea, transferencia directa (texto "aplanado" por unpdf, sin
- * saltos de línea limpios):
+ * Transferencia directa (el nombre va DESPUÉS del CUIT, pegado a un código de lote):
  * "31/01/24 67332701 Acreditacion de haberes 30503317814 240130007renault argentina sa $ 276.000,00 $ 276.000,67"
- * FECHA | COMPROBANTE | "Acreditacion de haberes" | [CUIT] [código+empleador] | $ MONTO | $ SALDO
  *
- * Formato de línea, DEBIN (el banco no informa la razón social, solo un ID
- * de transacción y el CUIT — limpiarEmpleador() cae a "CUIT <número>"):
+ * DEBIN (sin razón social, solo un ID de transacción y el CUIT —
+ * limpiarEmpleador() cae a "CUIT <número>"):
  * "08/07/26 89653638 Acreditacion haberes debin Id debin d4ro172vp1rr8p802kj3qe cuit 30712249338 $ 1.967.232,55 $ 1.967.233,37"
+ *
+ * Interbanking externa (el nombre va ANTES del CUIT, seguido de un comprobante
+ * bancario fragmentado con espacios — "02 30851 67"):
+ * "05/12/25 3085167 Pago haberes interbanking externa Voip experts srl 30712249338 02 30851 67 $ 1.576.062,38 $ 1.576.508,72"
+ *
+ * En los tres casos: FECHA | COMPROBANTE | concepto con "haberes" | [nombre]+[CUIT]+ruido | $ MONTO | $ SALDO
  */
 export function parseHaberesText(fullText: string): ParsedHaberes {
   const rows: HaberRow[] = [];
@@ -82,11 +108,16 @@ export function parseHaberesText(fullText: string): ParsedHaberes {
   const dateSplitRegex = /(?=\d{2}\/\d{2}\/\d{2}\s)/g;
   const chunks = fullText.split(dateSplitRegex).filter((c) => /^\d{2}\/\d{2}\/\d{2}\s/.test(c));
 
-  // Dentro de cada bloque que contenga "Acreditacion de haberes": fecha, luego
-  // todo el texto hasta el primer monto en $ (empleador+ruido), luego el monto.
-  // El monto de la acreditación es el primero en $ tras el concepto (el segundo
-  // $ es el saldo de cuenta y no nos interesa).
-  const chunkRegex = /^(\d{2}\/\d{2}\/\d{2})\s+\d+\s+(Acreditaci[oó]n (?:de )?haberes(?:\s+debin)?)\s+([\s\S]*?)\s*\$\s*([-\d.,]+)\s*\$/i;
+  // Dentro de cada bloque con la palabra "haberes": fecha, luego el concepto
+  // (hasta 5 palabras que preceden a "haberes" + "haberes" + hasta 3 palabras
+  // después, para no capturar frases largas), luego el resto hasta el primer
+  // monto en $ (empleador+ruido), luego el monto. El monto de la acreditación
+  // es el primero en $ tras el concepto (el segundo $ es el saldo de cuenta).
+  // No se enumeran variantes exactas de concepto ("Acreditacion de haberes",
+  // "Acreditacion haberes debin", "Pago haberes interbanking externa", etc.)
+  // porque el banco las cambia sin aviso — cualquier frase corta con "haberes"
+  // en el movimiento se toma como acreditación de sueldo.
+  const chunkRegex = /^(\d{2}\/\d{2}\/\d{2})\s+\d+\s+((?:\S+\s+){0,4}haberes(?:\s+\S+){0,3}?)\s+([\s\S]*?)\s*\$\s*([-\d.,]+)\s*\$/i;
 
   for (const chunk of chunks) {
     const m = chunkRegex.exec(chunk.trim());

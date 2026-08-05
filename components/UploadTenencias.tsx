@@ -570,9 +570,8 @@ function EmpleadoresNuevosForm({
   onConfirm: (mapeo: Record<string, string>) => void;
   onCancel: () => void;
 }) {
-  const capitalizar = (s: string) => s.replace(/\b\w/g, (c) => c.toUpperCase());
   const [valores, setValores] = useState<Record<string, string>>(
-    Object.fromEntries(nombres.map((n) => [n, capitalizar(n)]))
+    Object.fromEntries(nombres.map((n) => [n, n.toUpperCase()]))
   );
 
   const allFilled = nombres.every((n) => valores[n]?.trim());
@@ -610,9 +609,9 @@ function EmpleadoresNuevosForm({
           <div>
             <label style={labelStyle}>Nombre estandarizado</label>
             <input
-              style={inputStyle}
+              style={{ ...inputStyle, textTransform: 'uppercase' }}
               value={valores[n] ?? ''}
-              onChange={(e) => setValores((prev) => ({ ...prev, [n]: e.target.value }))}
+              onChange={(e) => setValores((prev) => ({ ...prev, [n]: e.target.value.toUpperCase() }))}
             />
           </div>
         </div>

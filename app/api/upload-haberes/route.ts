@@ -113,9 +113,11 @@ export async function POST(req: NextRequest) {
       });
       const filasExistentes = (existing.data.values ?? []).filter((r) => r[0]);
 
+      // El nombre del empleador siempre se guarda en mayúsculas, sin importar
+      // cómo lo haya tipeado el usuario en el formulario de estandarización.
       const filasNuevas = body.rows.map((r) => [
         r.fecha,
-        r.empleador,
+        r.empleador.toUpperCase(),
         formatArgentino(r.montoArs),
         formatArgentino(r.montoUsd),
         r.concepto,

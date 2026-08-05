@@ -17,6 +17,10 @@ describe('limpiarEmpleador', () => {
   it('cae a "CUIT <número>" cuando el pago es DEBIN y no hay nombre de empleador', () => {
     expect(limpiarEmpleador('Id debin d4ro172vp1rr8p802kj3qe cuit 30712249338')).toBe('CUIT 30712249338');
   });
+
+  it('extrae el nombre cuando va ANTES del CUIT y descarta el comprobante fragmentado (formato interbanking)', () => {
+    expect(limpiarEmpleador('interbanking externa Voip experts srl 30712249338 02 30851 67')).toBe('Voip experts srl');
+  });
 });
 
 describe('parseHaberesText', () => {
@@ -59,7 +63,21 @@ describe('parseHaberesText', () => {
       empleador: 'CUIT 30712249338',
       montoArs: 1967232.55,
       montoUsd: 0,
-      concepto: 'Acreditacion haberes debin',
+      concepto: 'Acreditacion haberes',
     });
+  });
+
+  it('reconoce el formato "Pago haberes interbanking externa" (nombre antes del CUIT, comprobante fragmentado)', () => {
+    const interbankingText = `Infinity Mi resumen de cuenta NICOLAS MENNA Movimientos en pesos Fecha Comprobante Movimiento Cuenta sueldo en pesos Cuenta Corriente en pesos Saldo en cuenta 28/11/25 Saldo Inicial $ 446,34 $ 0,00 $ 446,34 05/12/25 3085167 Pago haberes interbanking externa Voip experts srl 30712249338 02 30851 67 $ 1.576.062,38 $ 1.576.508,72 23/12/25 3221086 Pago haberes interbanking externa Voip experts srl 30712249338 02 32210 86 $ 795.911,51 $ 796.001,52`;
+    const { rows } = parseHaberesText(interbankingText);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toEqual({
+      fecha: '05/12/2025',
+      empleador: 'Voip experts srl',
+      montoArs: 1576062.38,
+      montoUsd: 0,
+      concepto: 'Pago haberes',
+    });
+    expect(rows[1].montoArs).toBe(795911.51);
   });
 });

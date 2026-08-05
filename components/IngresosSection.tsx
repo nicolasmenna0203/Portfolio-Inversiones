@@ -82,6 +82,20 @@ export default function IngresosSection({ hideValues }: Props) {
     });
   }, [resp]);
 
+  // Ticks del eje X espaciados uniformemente: con muchos meses, Recharts
+  // (interval="preserveStartEnd"/minTickGap) decide qué etiquetas mostrar según
+  // el ancho medido del texto, lo que amontona etiquetas en el medio del eje.
+  // Acá se elige explícitamente 1 de cada N meses, siempre parejo.
+  const xTicks = useMemo(() => {
+    const meses = chartData.map((d) => d.mes as string);
+    if (meses.length <= 8) return meses;
+    const paso = Math.ceil(meses.length / 8);
+    const ticks = meses.filter((_, i) => i % paso === 0);
+    const ultimo = meses[meses.length - 1];
+    if (ticks[ticks.length - 1] !== ultimo) ticks.push(ultimo);
+    return ticks;
+  }, [chartData]);
+
   const kpis = useMemo(() => {
     if (!resp || resp.ingresos.length === 0) return null;
     const totalArs = resp.ingresos.reduce((s, r) => s + r.montoArs, 0);
@@ -159,8 +173,8 @@ export default function IngresosSection({ hideValues }: Props) {
               tick={{ fontSize: 11, fill: 'var(--muted)' }}
               axisLine={{ stroke: 'var(--border)' }}
               tickLine={false}
-              interval="preserveStartEnd"
-              minTickGap={24}
+              ticks={xTicks}
+              interval={0}
             />
             <YAxis
               tick={{ fontSize: 11, fill: 'var(--muted)' }}
@@ -170,7 +184,7 @@ export default function IngresosSection({ hideValues }: Props) {
               width={hideValues ? 40 : 56}
             />
             <Tooltip content={hideValues ? () => null : <CustomTooltip />} />
-            {resp.empleadores.length > 1 && <Legend wrapperStyle={{ fontSize: 12 }} />}
+            {resp.empleadores.length > 1 && <Legend wrapperStyle={{ fontSize: 12, textTransform: 'uppercase' }} />}
             {resp.empleadores.map((emp) => (
               <Bar key={emp} dataKey={emp} stackId="ingresos" fill={empleadorColor.get(emp)} radius={[2, 2, 0, 0]} />
             ))}
@@ -200,7 +214,7 @@ export default function IngresosSection({ hideValues }: Props) {
                 background: empleadorColor.get(r.empleador) ?? 'var(--primary)',
               }} />
               <span style={{ color: 'var(--muted)', width: 90, flexShrink: 0 }}>{r.fechaStr}</span>
-              <span style={{ color: 'var(--text)', fontWeight: 600, flex: 1 }}>{r.empleador}</span>
+              <span style={{ color: 'var(--text)', fontWeight: 600, flex: 1, textTransform: 'uppercase' }}>{r.empleador}</span>
               <span style={{ color: 'var(--text-sec)', fontSize: 12 }}>{r.concepto}</span>
               <span style={{ color: 'var(--up)', fontWeight: 600, flexShrink: 0 }}>
                 {hideValues ? '***' : r.montoArs > 0 ? fmtARS(r.montoArs) : fmtUSD(r.montoUsd)}
