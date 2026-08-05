@@ -18,8 +18,9 @@ import BenchmarksTab from './BenchmarksTab';
 import NoticiasTab from './NoticiasTab';
 import CalendarioTab from './CalendarioTab';
 import PerformanceTab from './PerformanceTab';
+import IngresosSection from './IngresosSection';
 import { FlagUS, FlagAR } from './FlagIcons';
-type Tab = 'resumen' | 'tenencias' | 'informe' | 'proyecciones' | 'benchmarks' | 'noticias' | 'calendario' | 'performance';
+type Tab = 'resumen' | 'tenencias' | 'informe' | 'proyecciones' | 'benchmarks' | 'noticias' | 'calendario' | 'performance' | 'ingresos';
 
 const DIMS_TENENCIAS = [
   { key: 'TIPO',       label: 'Tipo de Activo'    },
@@ -39,6 +40,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'noticias',     label: 'Noticias'    },
   { id: 'calendario',   label: 'Calendario'  },
   { id: 'performance',  label: 'Performance' },
+  { id: 'ingresos',     label: 'Ingresos'    },
 ];
 
 // ── Filtro activo pill ────────────────────────────────────────────────────────
@@ -520,6 +522,13 @@ const [uploadOpen, setUploadOpen] = useState(false);
       {tab === 'performance' && (
         <section className="tab-scroll" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           <PerformanceTab data={data} />
+        </section>
+      )}
+
+      {/* ── Tab: Ingresos (sueldos/haberes por empleador, ARS/USD) ────────────── */}
+      {tab === 'ingresos' && (
+        <section className="tab-scroll" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+          <IngresosSection hideValues={hideValues} />
         </section>
       )}
 

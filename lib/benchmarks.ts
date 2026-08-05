@@ -59,6 +59,36 @@ export async function fetchMepAbsoluto(desdeTs: number): Promise<{ mesKey: strin
   return puntos.map((p) => ({ mesKey: p.mesKey, valorArs: p.valor }));
 }
 
+/**
+ * Dólar MEP diario (valor absoluto) para un conjunto de fechas puntuales
+ * "YYYY-MM-DD" — usado para convertir haberes a USD con la cotización del
+ * día exacto de cada acreditación, no un promedio mensual. Si un día no tiene
+ * cotización propia (fin de semana/feriado), usa el hábil más cercano hacia atrás.
+ */
+export async function fetchMepPorFecha(fechas: string[]): Promise<Record<string, number>> {
+  if (fechas.length === 0) return {};
+  const res = await fetch('https://api.argentinadatos.com/v1/cotizaciones/dolares/bolsa');
+  if (!res.ok) throw new Error(`ArgentinaDatos (MEP): HTTP ${res.status}`);
+  const json: { fecha: string; venta: number }[] = await res.json();
+
+  const porFecha = new Map<string, number>();
+  for (const r of json) porFecha.set(r.fecha, r.venta);
+  const fechasOrdenadas = [...porFecha.keys()].sort();
+
+  const out: Record<string, number> = {};
+  for (const f of fechas) {
+    if (porFecha.has(f)) { out[f] = porFecha.get(f)!; continue; }
+    // Fallback: última cotización disponible antes de esta fecha.
+    let anterior: string | undefined;
+    for (const disponible of fechasOrdenadas) {
+      if (disponible > f) break;
+      anterior = disponible;
+    }
+    if (anterior) out[f] = porFecha.get(anterior)!;
+  }
+  return out;
+}
+
 // ── Fuente 5: ArgentinaDatos — Inflación IPC INDEC ──────────────────────────────
 
 async function fetchInflacionMensual(desdeTs: number): Promise<RawMonthlyPrice[]> {

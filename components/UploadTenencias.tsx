@@ -509,6 +509,408 @@ function DoneMovimientos({ p }: { p: Record<string, unknown> }) {
   );
 }
 
+// ── Previsualización de Haberes ───────────────────────────────────────────────
+
+interface HaberRow { fecha: string; empleador: string; montoArs: number; montoUsd: number; concepto: string }
+
+function fmtHaberMonto(r: { montoArs: number; montoUsd: number }): string {
+  const partes: string[] = [];
+  if (r.montoArs > 0) partes.push(`$${r.montoArs.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+  if (r.montoUsd > 0) partes.push(`USD ${r.montoUsd.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+  return partes.join(' · ') || 's/d';
+}
+
+function PreviewHaberes({ p }: { p: Record<string, unknown> }) {
+  const rows = p.rows as HaberRow[];
+  return (
+    <>
+      <Row label="Acreditaciones detectadas" value={`${p.filas}`} />
+      <Row label="Empleadores" value={(p.empleadores as string[]).join(', ')} />
+      <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 2 }}>
+        <p style={{ fontSize: 11, color: 'var(--muted)', margin: '0 0 6px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          Detalle (ARS convertido a USD con el MEP del día de cada pago)
+        </p>
+        {rows.map((r, i) => (
+          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4, gap: 8 }}>
+            <span style={{ color: 'var(--muted)', flexShrink: 0 }}>{r.fecha}</span>
+            <span style={{ color: 'var(--text)', fontWeight: 600, flex: 1, textAlign: 'left' }}>{r.empleador}</span>
+            <span style={{ color: 'var(--up)', flexShrink: 0 }}>{fmtHaberMonto(r)}</span>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function DoneHaberes({ p }: { p: Record<string, unknown> }) {
+  const rows = p.rows as HaberRow[];
+  const totalArs = rows.reduce((s, r) => s + r.montoArs, 0);
+  const totalUsd = rows.reduce((s, r) => s + r.montoUsd, 0);
+  return (
+    <>
+      <Row label="Filas subidas" value={`${p.filas}`} />
+      {totalArs > 0 && <Row label="Total ARS" value={`$${totalArs.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} />}
+      {totalUsd > 0 && <Row label="Total USD (según MEP del día)" value={`USD ${totalUsd.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} />}
+    </>
+  );
+}
+
+// ── Formulario de empleadores nuevos (estandarizar nombre) ───────────────────
+
+function EmpleadoresNuevosForm({
+  nombres,
+  onConfirm,
+  onCancel,
+}: {
+  nombres: string[];
+  onConfirm: (mapeo: Record<string, string>) => void;
+  onCancel: () => void;
+}) {
+  const capitalizar = (s: string) => s.replace(/\b\w/g, (c) => c.toUpperCase());
+  const [valores, setValores] = useState<Record<string, string>>(
+    Object.fromEntries(nombres.map((n) => [n, capitalizar(n)]))
+  );
+
+  const allFilled = nombres.every((n) => valores[n]?.trim());
+
+  const labelStyle: React.CSSProperties = {
+    fontSize: 10, fontWeight: 700, color: 'var(--muted)',
+    textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3, display: 'block',
+  };
+  const inputStyle: React.CSSProperties = {
+    width: '100%', padding: '5px 8px', borderRadius: 6,
+    border: '1px solid var(--border)', background: 'var(--card)',
+    color: 'var(--text)', fontSize: 12, boxSizing: 'border-box',
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{
+        background: 'rgba(245,197,24,0.08)', border: '1px solid rgba(245,197,24,0.35)',
+        borderRadius: 8, padding: '10px 14px',
+      }}>
+        <p style={{ fontSize: 12, fontWeight: 700, color: '#f5c518', margin: '0 0 3px' }}>
+          ⚠ {nombres.length} empleador{nombres.length !== 1 ? 'es' : ''} nuevo{nombres.length !== 1 ? 's' : ''} detectado{nombres.length !== 1 ? 's' : ''}
+        </p>
+        <p style={{ fontSize: 12, color: 'var(--muted)', margin: 0 }}>
+          Revisá o corregí el nombre estandarizado antes de subir los ingresos.
+        </p>
+      </div>
+
+      {nombres.map((n) => (
+        <div key={n} style={{
+          border: '1px solid var(--border)', borderRadius: 8,
+          padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8,
+        }}>
+          <p style={{ fontSize: 11, color: 'var(--muted)', margin: 0 }}>Detectado como: <span style={{ color: 'var(--text-sec)' }}>{n}</span></p>
+          <div>
+            <label style={labelStyle}>Nombre estandarizado</label>
+            <input
+              style={inputStyle}
+              value={valores[n] ?? ''}
+              onChange={(e) => setValores((prev) => ({ ...prev, [n]: e.target.value }))}
+            />
+          </div>
+        </div>
+      ))}
+
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button
+          style={{
+            padding: '9px 24px', borderRadius: 8, border: 'none',
+            background: allFilled ? 'var(--primary)' : 'var(--border)',
+            color: allFilled ? '#fff' : 'var(--muted)',
+            fontWeight: 700, fontSize: 13,
+            cursor: allFilled ? 'pointer' : 'not-allowed',
+          }}
+          disabled={!allFilled}
+          onClick={() => onConfirm(valores)}
+        >
+          Confirmar y subir
+        </button>
+        <button
+          style={{
+            padding: '9px 24px', borderRadius: 8,
+            border: '1px solid var(--border)', background: 'transparent',
+            color: 'var(--muted)', fontWeight: 500, fontSize: 13, cursor: 'pointer',
+          }}
+          onClick={onCancel}
+        >
+          Cancelar
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Uploader de Haberes (multi-PDF: parsea cada archivo, combina en un solo preview) ──
+
+interface ArchivoResultado {
+  nombre: string;
+  ok: boolean;
+  error?: string;
+  filas?: number;
+}
+
+function UploaderHaberes() {
+  const [state, setState] = useState<UploaderState>({ step: 'idle' });
+  const [archivos, setArchivos] = useState<ArchivoResultado[]>([]);
+  const [dragging, setDragging] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleFiles = useCallback(async (fileList: FileList | File[]) => {
+    const files = Array.from(fileList);
+    const pdfs = files.filter((f) => f.name.endsWith('.pdf'));
+    if (pdfs.length === 0) {
+      setState({ step: 'error', error: 'Los archivos deben ser PDF.' });
+      return;
+    }
+    setState({ step: 'parsing' });
+
+    const resultados: ArchivoResultado[] = [];
+    const filasCombinadas: HaberRow[] = [];
+    const empleadoresNuevosSet = new Set<string>();
+    const empleadoresSet = new Set<string>();
+
+    for (const file of pdfs) {
+      const formData = new FormData();
+      formData.append('pdf', file);
+      try {
+        const res = await fetch('/api/upload-haberes?action=parse', { method: 'POST', body: formData });
+        const json = await res.json();
+        if (!res.ok) {
+          resultados.push({ nombre: file.name, ok: false, error: json.error ?? 'Error desconocido' });
+          continue;
+        }
+        const rows = json.rows as HaberRow[];
+        // Dedupe entre archivos del mismo lote (ej. dos PDFs que se solapan en un mes):
+        // misma fecha + empleador + monto ya agregado por otro archivo del lote.
+        for (const r of rows) {
+          const clave = `${r.fecha}|${r.empleador}|${r.montoArs}|${r.montoUsd}`;
+          if (filasCombinadas.some((f) => `${f.fecha}|${f.empleador}|${f.montoArs}|${f.montoUsd}` === clave)) continue;
+          filasCombinadas.push(r);
+          empleadoresSet.add(r.empleador);
+        }
+        for (const e of (json.empleadoresNuevos as string[] ?? [])) empleadoresNuevosSet.add(e);
+        resultados.push({ nombre: file.name, ok: true, filas: rows.length });
+      } catch (e: unknown) {
+        resultados.push({ nombre: file.name, ok: false, error: e instanceof Error ? e.message : String(e) });
+      }
+    }
+
+    setArchivos(resultados);
+
+    if (filasCombinadas.length === 0) {
+      setState({ step: 'error', error: 'Ningún archivo pudo procesarse. Revisá el detalle debajo.' });
+      return;
+    }
+
+    setState({
+      step: 'preview',
+      preview: {
+        filas: filasCombinadas.length,
+        rows: filasCombinadas,
+        empleadores: Array.from(empleadoresSet),
+        empleadoresNuevos: Array.from(empleadoresNuevosSet),
+      },
+    });
+  }, []);
+
+  const uploadHaberes = useCallback(async (rows: HaberRow[]) => {
+    setState((s) => ({ ...s, step: 'confirming' }));
+    try {
+      const res = await fetch('/api/upload-haberes?action=confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rows }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setState({ step: 'error', error: json.error ?? 'Error al confirmar' });
+        return;
+      }
+      setState({ step: 'done', confirmed: json });
+    } catch (e: unknown) {
+      setState({ step: 'error', error: e instanceof Error ? e.message : String(e) });
+    }
+  }, []);
+
+  const handleEmpleadoresConfirm = useCallback(async (mapeo: Record<string, string>) => {
+    if (!state.preview) return;
+    const rows = (state.preview.rows as HaberRow[]).map((r) => ({
+      ...r,
+      empleador: mapeo[r.empleador] ?? r.empleador,
+    }));
+    await uploadHaberes(rows);
+  }, [state.preview, uploadHaberes]);
+
+  const handleConfirm = useCallback(async () => {
+    if (!state.preview) return;
+    const nuevos = (state.preview.empleadoresNuevos as string[] | undefined) ?? [];
+    if (nuevos.length > 0) {
+      setState((s) => ({ ...s, step: 'completing' }));
+      return;
+    }
+    await uploadHaberes(state.preview.rows as HaberRow[]);
+  }, [state.preview, uploadHaberes]);
+
+  const reset = () => {
+    setState({ step: 'idle' });
+    setArchivos([]);
+    if (inputRef.current) inputRef.current.value = '';
+  };
+
+  const dropZoneStyle: React.CSSProperties = {
+    width: '100%',
+    border: `2px dashed ${dragging ? 'var(--primary)' : 'var(--border)'}`,
+    borderRadius: 10,
+    padding: '22px 20px',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 6,
+    cursor: 'pointer',
+    background: dragging ? 'var(--primary-dim)' : 'transparent',
+    transition: 'all 0.15s',
+    boxSizing: 'border-box',
+  };
+
+  const btnPrimary: React.CSSProperties = {
+    padding: '9px 24px', borderRadius: 8, border: 'none',
+    background: 'var(--primary)', color: '#fff',
+    fontWeight: 700, fontSize: 13, cursor: 'pointer',
+  };
+
+  const btnSecondary: React.CSSProperties = {
+    ...btnPrimary, background: 'transparent',
+    border: '1px solid var(--border)', color: 'var(--muted)', fontWeight: 500,
+  };
+
+  return (
+    <div style={{
+      background: 'var(--card)', border: '1px solid var(--border)',
+      borderRadius: 12, padding: '20px 24px',
+      display: 'flex', flexDirection: 'column', gap: 14,
+    }}>
+      <div>
+        <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--primary)', marginBottom: 3 }}>
+          Sueldos / Haberes
+        </p>
+        <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', margin: 0 }}>
+          Resumen de cuenta bancario — acreditación de haberes
+        </p>
+        <p style={{ fontSize: 11, color: 'var(--muted)', margin: '4px 0 0' }}>
+          PDF del resumen de tu cuenta sueldo (banco): detecta las líneas &quot;Acreditacion de haberes&quot; y su empleador. Podés soltar varios PDFs (uno por mes) a la vez.
+        </p>
+      </div>
+
+      {state.step === 'idle' && (
+        <div
+          style={dropZoneStyle}
+          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(e) => { e.preventDefault(); setDragging(false); if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files); }}
+          onClick={() => inputRef.current?.click()}
+        >
+          <span style={{ fontSize: 26 }}>📄</span>
+          <p style={{ fontSize: 13, color: 'var(--text)', margin: 0, fontWeight: 600 }}>Arrastrá uno o varios PDFs acá</p>
+          <p style={{ fontSize: 11, color: 'var(--muted)', margin: 0 }}>o hacé click para seleccionarlos</p>
+          <input ref={inputRef} type="file" accept=".pdf" multiple style={{ display: 'none' }}
+            onChange={(e) => { if (e.target.files?.length) handleFiles(e.target.files); }} />
+        </div>
+      )}
+
+      {state.step === 'parsing' && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0' }}>
+          <Spinner />
+          <p style={{ color: 'var(--muted)', fontSize: 13, margin: 0 }}>Leyendo PDF{archivos.length !== 1 ? 's' : ''}...</p>
+        </div>
+      )}
+
+      {state.step === 'preview' && state.preview && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {archivos.length > 1 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {archivos.map((a, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                  <span style={{ color: a.ok ? 'var(--up)' : 'var(--down)' }}>{a.ok ? '✓' : '✕'}</span>
+                  <span style={{ color: 'var(--text-sec)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.nombre}</span>
+                  <span style={{ color: 'var(--muted)', fontSize: 11 }}>{a.ok ? `${a.filas} filas` : a.error}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <div style={{
+            background: 'rgba(99,102,241,0.07)', border: '1px solid rgba(99,102,241,0.25)',
+            borderRadius: 8, padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 10,
+          }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--primary)', margin: 0, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+              Vista previa combinada — revisá antes de confirmar
+            </p>
+            <PreviewHaberes p={state.preview} />
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button style={btnPrimary} onClick={handleConfirm}>Confirmar y subir</button>
+            <button style={btnSecondary} onClick={reset}>Cancelar</button>
+          </div>
+        </div>
+      )}
+
+      {state.step === 'completing' && state.preview && (
+        <EmpleadoresNuevosForm
+          nombres={(state.preview.empleadoresNuevos as string[]) ?? []}
+          onConfirm={handleEmpleadoresConfirm}
+          onCancel={reset}
+        />
+      )}
+
+      {state.step === 'confirming' && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0' }}>
+          <Spinner />
+          <p style={{ color: 'var(--muted)', fontSize: 13, margin: 0 }}>Subiendo a Google Sheets...</p>
+        </div>
+      )}
+
+      {state.step === 'done' && state.confirmed && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{
+            background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.3)',
+            borderRadius: 8, padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 8,
+          }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: '#22c55e', margin: 0 }}>✓ Subido correctamente</p>
+            <DoneHaberes p={state.confirmed} />
+          </div>
+          <button style={btnSecondary} onClick={reset}>Cargar otro resumen</button>
+        </div>
+      )}
+
+      {state.step === 'error' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{
+            background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)',
+            borderRadius: 8, padding: '14px 18px',
+          }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: '#ef4444', margin: '0 0 4px' }}>Error</p>
+            <p style={{ fontSize: 13, color: 'var(--text)', margin: 0 }}>{state.error}</p>
+          </div>
+          {archivos.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {archivos.map((a, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                  <span style={{ color: a.ok ? 'var(--up)' : 'var(--down)' }}>{a.ok ? '✓' : '✕'}</span>
+                  <span style={{ color: 'var(--text-sec)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.nombre}</span>
+                  <span style={{ color: 'var(--muted)', fontSize: 11 }}>{a.ok ? `${a.filas} filas` : a.error}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <button style={btnPrimary} onClick={reset}>Intentar de nuevo</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Export ────────────────────────────────────────────────────────────────────
 
 export default function UploadTenencias() {
@@ -546,6 +948,9 @@ export default function UploadTenencias() {
         renderPreview={(p) => <PreviewMovimientos p={p} />}
         renderDone={(p) => <DoneMovimientos p={p} />}
       />
+
+      {/* Haberes */}
+      <UploaderHaberes />
 
     </div>
   );

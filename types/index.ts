@@ -242,6 +242,32 @@ export interface CarryTradeItem {
   tenenciaUsd?: number;
 }
 
+// ── Ingresos (haberes/sueldos por empleador, ARS/USD) ────────────────────────
+
+export interface IngresoRow {
+  fecha: number;        // timestamp ms
+  fechaStr: string;      // "DD/MM/YYYY" como viene del Sheet
+  empleador: string;
+  montoArs: number;
+  montoUsd: number;
+  concepto: string;      // ej. "Acreditacion de haberes"
+}
+
+export interface IngresosPorMes {
+  mesKey: string;         // "YYYY-MM"
+  fecha: string;          // "Mar-2024"
+  totalArs: number;
+  totalUsd: number;
+  rows: IngresoRow[];
+}
+
+export interface IngresosResponse {
+  ingresos: IngresoRow[];
+  porMes: IngresosPorMes[];
+  empleadores: string[];
+  generatedAt: number;
+}
+
 // ── Performance (renta variable): fundamentals, variación, histórico ─────────
 
 export interface StockPerformance {

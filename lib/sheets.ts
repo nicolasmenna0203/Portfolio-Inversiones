@@ -18,7 +18,7 @@ import type {
 
 // ── Auth ─────────────────────────────────────────────────────────────────────
 
-function getAuth() {
+export function getAuth() {
   const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
   if (!raw) throw new Error('Falta env var GOOGLE_SERVICE_ACCOUNT_JSON');
   const credentials = JSON.parse(raw);
@@ -30,7 +30,7 @@ function getAuth() {
 
 // ── Raw sheet reader ──────────────────────────────────────────────────────────
 
-async function readSheet(
+export async function readSheet(
   spreadsheetId: string,
   range: string
 ): Promise<Record<string, string>[]> {
