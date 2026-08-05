@@ -23,7 +23,36 @@ function formatArgentino(n: number): string {
   return `${intFmt},${dec}`;
 }
 
-// ── GET: meses ya cargados en Ingresos ─────────────────────────────────────────
+/** "DD/MM/YYYY" → timestamp UTC, para poder ordenar cronológicamente. */
+function fechaATimestamp(fechaStr: string): number {
+  const [dd, mm, yyyy] = fechaStr.split('/');
+  return Date.UTC(+yyyy, +mm - 1, +dd);
+}
+
+// ── GET: filas y empleadores ya cargados en Ingresos ──────────────────────────
+
+/** Normaliza una fecha a "YYYY-MM-DD" (acepta "DD/MM/YYYY" o "YYYY-MM-DD") para comparar filas. */
+function normalizarFecha(f: string): string | null {
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(f)) {
+    const [dd, mm, yyyy] = f.split('/');
+    return `${yyyy}-${mm}-${dd}`;
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(f)) return f;
+  return null;
+}
+
+/**
+ * Clave de dedupe de una fila: fecha normalizada + montos, SIN el empleador.
+ * El nombre del empleador no es confiable para comparar: el usuario puede
+ * estandarizarlo al confirmar (ej. "CUIT 30712249338" → "VOIP EXPERTS SRL"),
+ * y el parser vuelve a extraer el nombre crudo del PDF en la próxima carga,
+ * que ya no coincide con el guardado. Fecha exacta + monto exacto identifican
+ * el pago igual de bien y no cambian aunque el nombre se edite después.
+ */
+function claveFila(fecha: string, montoArs: string, montoUsd: string): string {
+  const fechaNorm = normalizarFecha(fecha) ?? fecha;
+  return `${fechaNorm}|${montoArs}|${montoUsd}`;
+}
 
 export async function GET() {
   try {
@@ -35,29 +64,20 @@ export async function GET() {
 
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId: id,
-      range: 'Ingresos!A:B',
+      range: 'Ingresos!A:E',
       valueRenderOption: 'FORMATTED_VALUE',
     });
 
-    const rawRows = res.data.values ?? [];
-    const dataRows = rawRows.slice(1);
-    const fechas = dataRows.map((r) => r[0] ?? '').filter(Boolean);
+    const dataRows = (res.data.values ?? []).slice(1).filter((r) => r[0]);
     const empleadoresConocidos = Array.from(new Set(dataRows.map((r) => r[1] ?? '').filter(Boolean)));
+    const filasExistentes = new Set(
+      dataRows.map((r) => claveFila(r[0] ?? '', r[2] ?? '0', r[3] ?? '0'))
+    );
 
-    const mesesCargados = new Set<string>();
-    for (const f of fechas) {
-      let d: Date | null = null;
-      if (/^\d{2}\/\d{2}\/\d{4}$/.test(f)) {
-        const [dd, mm, yyyy] = f.split('/');
-        d = new Date(Date.UTC(+yyyy, +mm - 1, +dd));
-      } else if (/^\d{4}-\d{2}-\d{2}$/.test(f)) {
-        const [yyyy, mm, dd] = f.split('-');
-        d = new Date(Date.UTC(+yyyy, +mm - 1, +dd));
-      }
-      if (d) mesesCargados.add(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`);
-    }
-
-    return NextResponse.json({ mesesCargados: Array.from(mesesCargados), empleadoresConocidos });
+    return NextResponse.json({
+      filasExistentes: Array.from(filasExistentes),
+      empleadoresConocidos,
+    });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     return NextResponse.json({ error: msg }, { status: 500 });
@@ -82,7 +102,18 @@ export async function POST(req: NextRequest) {
       const auth = getAuthWrite();
       const sheets = google.sheets({ version: 'v4', auth });
 
-      const sheetRows = body.rows.map((r) => [
+      // Se reescribe el rango completo (en vez de `append`) para que la hoja
+      // quede siempre ordenada por fecha ascendente, sin importar el orden en
+      // que se cargan los PDFs — un resumen de un mes anterior cargado después
+      // de uno posterior debe insertarse en su posición, no al final.
+      const existing = await sheets.spreadsheets.values.get({
+        spreadsheetId: id,
+        range: 'Ingresos!A2:E',
+        valueRenderOption: 'FORMATTED_VALUE',
+      });
+      const filasExistentes = (existing.data.values ?? []).filter((r) => r[0]);
+
+      const filasNuevas = body.rows.map((r) => [
         r.fecha,
         r.empleador,
         formatArgentino(r.montoArs),
@@ -90,16 +121,20 @@ export async function POST(req: NextRequest) {
         r.concepto,
       ]);
 
-      await sheets.spreadsheets.values.append({
+      const todasLasFilas = [...filasExistentes, ...filasNuevas].sort(
+        (a, b) => fechaATimestamp(a[0]) - fechaATimestamp(b[0])
+      );
+
+      await sheets.spreadsheets.values.update({
         spreadsheetId: id,
-        range: 'Ingresos!A:E',
+        range: `Ingresos!A2:E${todasLasFilas.length + 1}`,
         valueInputOption: 'USER_ENTERED',
-        requestBody: { values: sheetRows },
+        requestBody: { values: todasLasFilas },
       });
 
       return NextResponse.json({
         ok: true,
-        filas: sheetRows.length,
+        filas: filasNuevas.length,
         rows: body.rows,
       });
     }
@@ -121,27 +156,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `Error parseando PDF: ${msg}` }, { status: 400 });
     }
 
-    // Excluir del preview los meses que ya están cargados en la hoja
     const getRes = await GET();
     const getBody = await getRes.json();
-    const mesesCargados = new Set<string>(getBody.mesesCargados ?? []);
+    const filasExistentes = new Set<string>(getBody.filasExistentes ?? []);
     const empleadoresConocidos: string[] = getBody.empleadoresConocidos ?? [];
-
-    const rowsNuevas = parsed.rows.filter((r) => {
-      const [dd, mm, yyyy] = r.fecha.split('/');
-      return !mesesCargados.has(`${yyyy}-${mm}`);
-    });
-
-    if (rowsNuevas.length === 0) {
-      return NextResponse.json(
-        { error: 'Todos los meses detectados en este PDF ya están cargados en Ingresos.' },
-        { status: 409 }
-      );
-    }
 
     // ── Conversión ARS→USD con el MEP del día exacto de cada acreditación ──
     const fechasArs = Array.from(new Set(
-      rowsNuevas.filter((r) => r.montoArs > 0).map((r) => {
+      parsed.rows.filter((r) => r.montoArs > 0).map((r) => {
         const [dd, mm, yyyy] = r.fecha.split('/');
         return `${yyyy}-${mm}-${dd}`;
       })
@@ -153,24 +175,39 @@ export async function POST(req: NextRequest) {
       // Si falla la fuente de MEP, se sube igual sin conversión (montoUsd queda en 0).
     }
 
-    const rowsConUsd: HaberRow[] = rowsNuevas.map((r) => {
+    const rowsConUsd: HaberRow[] = parsed.rows.map((r) => {
       if (r.montoArs <= 0) return r;
       const [dd, mm, yyyy] = r.fecha.split('/');
       const mep = mepPorFecha[`${yyyy}-${mm}-${dd}`];
       return mep ? { ...r, montoUsd: r.montoArs / mep } : r;
     });
 
+    // Excluir del preview las filas que ya están cargadas (misma fecha+monto exactos,
+    // no el mes entero — así un pago nuevo de otro empleador el mismo mes no se bloquea).
+    const rowsNuevas = rowsConUsd.filter((r) => {
+      const clave = claveFila(r.fecha, formatArgentino(r.montoArs), formatArgentino(r.montoUsd));
+      return !filasExistentes.has(clave);
+    });
+
+    if (rowsNuevas.length === 0) {
+      return NextResponse.json(
+        { error: 'Todas las acreditaciones detectadas en este PDF ya están cargadas en Ingresos.' },
+        { status: 409 }
+      );
+    }
+
     // ── Empleadores nuevos: no están (case-insensitive) entre los ya cargados ──
     const conocidosNorm = new Set(empleadoresConocidos.map((e) => e.toLowerCase()));
-    const empleadoresDetectados = Array.from(new Set(rowsConUsd.map((r) => r.empleador)));
+    const empleadoresDetectados = Array.from(new Set(rowsNuevas.map((r) => r.empleador)));
     const empleadoresNuevos = empleadoresDetectados.filter((e) => !conocidosNorm.has(e.toLowerCase()));
 
     return NextResponse.json({
       preview: true,
-      filas: rowsConUsd.length,
-      rows: rowsConUsd,
+      filas: rowsNuevas.length,
+      rows: rowsNuevas,
       empleadores: empleadoresDetectados,
       empleadoresNuevos,
+      omitidas: rowsConUsd.length - rowsNuevas.length,
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);

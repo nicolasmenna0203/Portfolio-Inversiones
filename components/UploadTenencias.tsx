@@ -522,10 +522,14 @@ function fmtHaberMonto(r: { montoArs: number; montoUsd: number }): string {
 
 function PreviewHaberes({ p }: { p: Record<string, unknown> }) {
   const rows = p.rows as HaberRow[];
+  const omitidas = (p.omitidas as number) ?? 0;
   return (
     <>
       <Row label="Acreditaciones detectadas" value={`${p.filas}`} />
       <Row label="Empleadores" value={(p.empleadores as string[]).join(', ')} />
+      {omitidas > 0 && (
+        <Row label="Ya cargadas (omitidas)" value={`${omitidas}`} />
+      )}
       <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 2 }}>
         <p style={{ fontSize: 11, color: 'var(--muted)', margin: '0 0 6px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
           Detalle (ARS convertido a USD con el MEP del día de cada pago)
@@ -671,6 +675,7 @@ function UploaderHaberes() {
     const filasCombinadas: HaberRow[] = [];
     const empleadoresNuevosSet = new Set<string>();
     const empleadoresSet = new Set<string>();
+    let omitidasTotal = 0;
 
     for (const file of pdfs) {
       const formData = new FormData();
@@ -683,11 +688,16 @@ function UploaderHaberes() {
           continue;
         }
         const rows = json.rows as HaberRow[];
+        omitidasTotal += (json.omitidas as number) ?? 0;
         // Dedupe entre archivos del mismo lote (ej. dos PDFs que se solapan en un mes):
-        // misma fecha + empleador + monto ya agregado por otro archivo del lote.
+        // misma fecha + monto ya agregado por otro archivo del lote. No se compara el
+        // empleador porque cada parse devuelve el nombre crudo del PDF, no el estandarizado.
         for (const r of rows) {
-          const clave = `${r.fecha}|${r.empleador}|${r.montoArs}|${r.montoUsd}`;
-          if (filasCombinadas.some((f) => `${f.fecha}|${f.empleador}|${f.montoArs}|${f.montoUsd}` === clave)) continue;
+          const clave = `${r.fecha}|${r.montoArs}|${r.montoUsd}`;
+          if (filasCombinadas.some((f) => `${f.fecha}|${f.montoArs}|${f.montoUsd}` === clave)) {
+            omitidasTotal += 1;
+            continue;
+          }
           filasCombinadas.push(r);
           empleadoresSet.add(r.empleador);
         }
@@ -712,6 +722,7 @@ function UploaderHaberes() {
         rows: filasCombinadas,
         empleadores: Array.from(empleadoresSet),
         empleadoresNuevos: Array.from(empleadoresNuevosSet),
+        omitidas: omitidasTotal,
       },
     });
   }, []);

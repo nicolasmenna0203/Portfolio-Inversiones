@@ -119,7 +119,10 @@ export default function IngresosSection({ hideValues }: Props) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, flex: 1, minHeight: 0 }}>
+    <div style={{
+      display: 'flex', flexDirection: 'column', gap: 14, flex: 1, minHeight: 0,
+      overflowY: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 24,
+    }}>
       <div className="kpi-grid">
         <KPICard
           label="Total acumulado (ARS)"
@@ -151,7 +154,14 @@ export default function IngresosSection({ hideValues }: Props) {
         <ResponsiveContainer width="100%" height={280}>
           <BarChart data={chartData} barCategoryGap="20%">
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" vertical={false} />
-            <XAxis dataKey="mes" tick={{ fontSize: 11, fill: 'var(--muted)' }} axisLine={{ stroke: 'var(--border)' }} tickLine={false} />
+            <XAxis
+              dataKey="mes"
+              tick={{ fontSize: 11, fill: 'var(--muted)' }}
+              axisLine={{ stroke: 'var(--border)' }}
+              tickLine={false}
+              interval="preserveStartEnd"
+              minTickGap={24}
+            />
             <YAxis
               tick={{ fontSize: 11, fill: 'var(--muted)' }}
               axisLine={false}
