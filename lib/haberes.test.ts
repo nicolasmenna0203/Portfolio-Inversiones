@@ -26,7 +26,7 @@ describe('limpiarEmpleador', () => {
 describe('parseHaberesText', () => {
   const sampleText = `SuperCuenta Mi resumen de cuenta NICOLAS MENNA CUIL: 20-43272108-7 Movimientos en pesos Fecha Comprobante Movimiento Caja de Ahorro en pesos Saldo en cuenta 13/01/24 Saldo Inicial $ 0,67 $ 0,67 31/01/24 67332701 Acreditacion de haberes 30503317814 240130007renault argentina sa $ 276.000,00 $ 276.000,67 31/01/24 67495399 Transferencia no gravada A nicolas alejandro menna / varios - var / 20432721087 -$ 276.000,00 $ 0,67 29/02/24 68817961 Acreditacion de haberes 30503317814 240228007renault argentina sa2 $ 367.200,00 $ 367.200,67 27/03/24 70551592 Acreditacion de haberes 240327007renault argentina sa cuit 30503317814 $ 349.000,00 $ 349.000,00 Movimientos en dólares No tenés movimientos en dólares en este período.`;
 
-  it('extrae las acreditaciones de haberes con fecha, empleador y monto', () => {
+  it('extrae las acreditaciones de haberes con fecha, empleador y monto, ignorando otras líneas (ej. transferencias)', () => {
     const { rows } = parseHaberesText(sampleText);
     expect(rows).toHaveLength(3);
     expect(rows[0]).toEqual({
@@ -34,15 +34,9 @@ describe('parseHaberesText', () => {
       empleador: 'renault argentina sa',
       montoArs: 276000,
       montoUsd: 0,
-      concepto: 'Acreditacion de haberes',
     });
     expect(rows[1].montoArs).toBe(367200);
     expect(rows[2].fecha).toBe('27/03/2024');
-  });
-
-  it('ignora líneas que no son acreditación de haberes (ej. transferencias)', () => {
-    const { rows } = parseHaberesText(sampleText);
-    expect(rows.every((r) => r.concepto.toLowerCase().includes('haberes'))).toBe(true);
   });
 
   it('agrupa los meses detectados sin duplicados y ordenados', () => {
@@ -63,7 +57,6 @@ describe('parseHaberesText', () => {
       empleador: 'CUIT 30712249338',
       montoArs: 1967232.55,
       montoUsd: 0,
-      concepto: 'Acreditacion haberes',
     });
   });
 
@@ -76,7 +69,6 @@ describe('parseHaberesText', () => {
       empleador: 'Voip experts srl',
       montoArs: 1576062.38,
       montoUsd: 0,
-      concepto: 'Pago haberes',
     });
     expect(rows[1].montoArs).toBe(795911.51);
   });

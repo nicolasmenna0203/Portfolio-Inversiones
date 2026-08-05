@@ -215,7 +215,6 @@ export default function IngresosSection({ hideValues }: Props) {
               }} />
               <span style={{ color: 'var(--muted)', width: 90, flexShrink: 0 }}>{r.fechaStr}</span>
               <span style={{ color: 'var(--text)', fontWeight: 600, flex: 1, textTransform: 'uppercase' }}>{r.empleador}</span>
-              <span style={{ color: 'var(--text-sec)', fontSize: 12 }}>{r.concepto}</span>
               <span style={{ color: 'var(--up)', fontWeight: 600, flexShrink: 0 }}>
                 {hideValues ? '***' : r.montoArs > 0 ? fmtARS(r.montoArs) : fmtUSD(r.montoUsd)}
               </span>

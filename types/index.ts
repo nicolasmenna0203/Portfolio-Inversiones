@@ -250,7 +250,6 @@ export interface IngresoRow {
   empleador: string;
   montoArs: number;
   montoUsd: number;
-  concepto: string;      // ej. "Acreditacion de haberes"
 }
 
 export interface IngresosPorMes {

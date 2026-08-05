@@ -6,7 +6,7 @@ export async function fetchIngresos(): Promise<IngresosResponse> {
   const id = process.env.SPREADSHEET_ID;
   if (!id) throw new Error('Falta env var SPREADSHEET_ID');
 
-  const rawIngresos = await readSheet(id, 'Ingresos!A:E');
+  const rawIngresos = await readSheet(id, 'Ingresos!A:D');
 
   const ingresos: IngresoRow[] = rawIngresos
     .map((r) => {
@@ -20,7 +20,6 @@ export async function fetchIngresos(): Promise<IngresosResponse> {
         empleador,
         montoArs: parseArgNum(r['Monto ARS'] ?? r['MONTO ARS']) ?? 0,
         montoUsd: parseArgNum(r['Monto USD'] ?? r['MONTO USD']) ?? 0,
-        concepto: r['Concepto'] ?? r['CONCEPTO'] ?? '',
       };
     })
     .filter(Boolean) as IngresoRow[];

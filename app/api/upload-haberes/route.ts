@@ -64,7 +64,7 @@ export async function GET() {
 
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId: id,
-      range: 'Ingresos!A:E',
+      range: 'Ingresos!A:D',
       valueRenderOption: 'FORMATTED_VALUE',
     });
 
@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
       // de uno posterior debe insertarse en su posición, no al final.
       const existing = await sheets.spreadsheets.values.get({
         spreadsheetId: id,
-        range: 'Ingresos!A2:E',
+        range: 'Ingresos!A2:D',
         valueRenderOption: 'FORMATTED_VALUE',
       });
       const filasExistentes = (existing.data.values ?? []).filter((r) => r[0]);
@@ -120,7 +120,6 @@ export async function POST(req: NextRequest) {
         r.empleador.toUpperCase(),
         formatArgentino(r.montoArs),
         formatArgentino(r.montoUsd),
-        r.concepto,
       ]);
 
       const todasLasFilas = [...filasExistentes, ...filasNuevas].sort(
@@ -129,7 +128,7 @@ export async function POST(req: NextRequest) {
 
       await sheets.spreadsheets.values.update({
         spreadsheetId: id,
-        range: `Ingresos!A2:E${todasLasFilas.length + 1}`,
+        range: `Ingresos!A2:D${todasLasFilas.length + 1}`,
         valueInputOption: 'USER_ENTERED',
         requestBody: { values: todasLasFilas },
       });

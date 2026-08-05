@@ -511,7 +511,7 @@ function DoneMovimientos({ p }: { p: Record<string, unknown> }) {
 
 // ── Previsualización de Haberes ───────────────────────────────────────────────
 
-interface HaberRow { fecha: string; empleador: string; montoArs: number; montoUsd: number; concepto: string }
+interface HaberRow { fecha: string; empleador: string; montoArs: number; montoUsd: number }
 
 function fmtHaberMonto(r: { montoArs: number; montoUsd: number }): string {
   const partes: string[] = [];

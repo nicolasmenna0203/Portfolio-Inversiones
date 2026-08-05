@@ -71,7 +71,6 @@ export interface HaberRow {
   empleador: string;
   montoArs: number;
   montoUsd: number;
-  concepto: string;
 }
 
 export interface ParsedHaberes {
@@ -124,13 +123,12 @@ export function parseHaberesText(fullText: string): ParsedHaberes {
     if (!m) continue;
 
     const fecha = formatFecha(m[1]);
-    const concepto = m[2];
     const empleador = limpiarEmpleador(m[3]);
     const montoArs = parseArgNum(m[4]);
 
     if (!empleador || isNaN(montoArs) || montoArs <= 0) continue;
 
-    rows.push({ fecha, empleador, montoArs, montoUsd: 0, concepto });
+    rows.push({ fecha, empleador, montoArs, montoUsd: 0 });
   }
 
   // Movimientos en dólares: mismo patrón de línea, pero el monto viene en USD.
@@ -143,13 +141,12 @@ export function parseHaberesText(fullText: string): ParsedHaberes {
       if (!m) continue;
 
       const fecha = formatFecha(m[1]);
-      const concepto = m[2];
       const empleador = limpiarEmpleador(m[3]);
       const montoUsd = parseArgNum(m[4]);
 
       if (!empleador || isNaN(montoUsd) || montoUsd <= 0) continue;
 
-      rows.push({ fecha, empleador, montoArs: 0, montoUsd, concepto });
+      rows.push({ fecha, empleador, montoArs: 0, montoUsd });
     }
   }
 
