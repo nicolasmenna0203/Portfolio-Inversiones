@@ -2,6 +2,7 @@ export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { google } from 'googleapis';
+import { fetchMepPorFecha } from '@/lib/benchmarks';
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
@@ -171,15 +172,33 @@ export async function POST(req: NextRequest) {
       const auth = getAuthWrite();
       const sheets = google.sheets({ version: 'v4', auth });
 
-      const sheetRows = body.rows.map((r) => [
-        r.fecha,
-        r.montoUSD.toFixed(2).replace('.', ','),
-        r.tipo,
-      ]);
+      // Conversión USD→ARS con el MEP del día exacto de cada movimiento.
+      const fechasIso = Array.from(new Set(body.rows.map((r) => {
+        const [dd, mm, yyyy] = r.fecha.split('/');
+        return `${yyyy}-${mm}-${dd}`;
+      })));
+      let mepPorFecha: Record<string, number> = {};
+      try {
+        mepPorFecha = await fetchMepPorFecha(fechasIso);
+      } catch {
+        // Si falla la fuente de MEP, se sube igual sin conversión (Monto ARS queda vacío).
+      }
+
+      const sheetRows = body.rows.map((r) => {
+        const [dd, mm, yyyy] = r.fecha.split('/');
+        const mep = mepPorFecha[`${yyyy}-${mm}-${dd}`];
+        const montoArs = mep ? r.montoUSD * mep : null;
+        return [
+          r.fecha,
+          r.montoUSD.toFixed(2).replace('.', ','),
+          r.tipo,
+          montoArs != null ? montoArs.toFixed(2).replace('.', ',') : '',
+        ];
+      });
 
       await sheets.spreadsheets.values.append({
         spreadsheetId: id,
-        range: 'Movimientos!A:C',
+        range: 'Movimientos!A:D',
         valueInputOption: 'USER_ENTERED',
         requestBody: { values: sheetRows },
       });

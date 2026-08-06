@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Treemap, ResponsiveContainer, Tooltip } from 'recharts';
 import type { TenenciaActual } from '@/types';
 import { PALETA_TIPO, RIESGO_COLOR, RIESGO_LABEL, RENTA_LABEL, GEO_LABEL, MONEDA_LABEL, MONEDA_COLOR, RENTA_COLOR, GEO_COLOR, colorPorCategoria } from '@/lib/constants';
-import { fmtUSD } from '@/lib/parser';
+import { fmtUSD, fmtARS, type Moneda } from '@/lib/parser';
 
 interface Props {
   tenencias: TenenciaActual[];
@@ -13,6 +13,7 @@ interface Props {
   filtroTipo?: string | null;
   onFiltroTipo?: (tipo: string) => void;
   hideValues?: boolean;
+  moneda?: Moneda;
 }
 
 const DIMS = [
@@ -44,14 +45,17 @@ function getGroupColor(group: string, dim: Dim): string {
   return colorPorCategoria(group);
 }
 
-function buildData(tenencias: TenenciaActual[], dim: Dim) {
+function buildData(tenencias: TenenciaActual[], dim: Dim, moneda: Moneda) {
+  // tenencia_ars/tenencia_usd ya vienen calculados desde el origen (Sheet) para
+  // cada mes — no se recalculan acá con ningún MEP.
+  const campo = moneda === 'ARS' ? 'tenencia_ars' : 'tenencia_usd';
   // Construir mapa de grupos → tickers
   const groupMap = new Map<string, Map<string, number>>();
   for (const t of tenencias) {
     const g = getGroupLabel(t, dim);
     if (!groupMap.has(g)) groupMap.set(g, new Map());
     const tickers = groupMap.get(g)!;
-    tickers.set(t.ticker, (tickers.get(t.ticker) ?? 0) + t.tenencia_usd);
+    tickers.set(t.ticker, (tickers.get(t.ticker) ?? 0) + t[campo]);
   }
 
   // Asignar color por índice de grupo
@@ -150,9 +154,10 @@ function CustomCell({ x, y, width, height, name, value, depth, root, group, colo
   );
 }
 
-function TooltipContent({ active, payload, hideValues }: any) {
+function TooltipContent({ active, payload, hideValues, moneda }: any) {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
+  const fmt = moneda === 'ARS' ? fmtARS : fmtUSD;
   return (
     <div style={{
       background: 'var(--card)', border: '1px solid var(--border)',
@@ -160,13 +165,13 @@ function TooltipContent({ active, payload, hideValues }: any) {
       boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
     }}>
       <p style={{ fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>{d.name}</p>
-      <p style={{ color: 'var(--text-sec)' }}>{hideValues ? '···' : fmtUSD(d.value)}</p>
+      <p style={{ color: 'var(--text-sec)' }}>{hideValues ? '···' : fmt(d.value)}</p>
       {d.group && <p style={{ color: d.color ?? 'var(--muted)', marginTop: 2, fontSize: 11 }}>{d.group}</p>}
     </div>
   );
 }
 
-export default function TreemapChart({ tenencias, dim: dimProp, filtroTipo, onFiltroTipo, hideValues }: Props) {
+export default function TreemapChart({ tenencias, dim: dimProp, filtroTipo, onFiltroTipo, hideValues, moneda = 'USD' }: Props) {
   const [dimLocal, setDimLocal] = useState<Dim>('TIPO');
   const dim = dimProp ?? dimLocal;
 
@@ -175,7 +180,7 @@ export default function TreemapChart({ tenencias, dim: dimProp, filtroTipo, onFi
     ? tenencias.filter(t => t.RENTA === 'VAR' || t.RENTA === 'VARIABLE')
     : tenencias;
 
-  const data = buildData(tenenciasFiltradas, dim);
+  const data = buildData(tenenciasFiltradas, dim, moneda);
 
   // El filtro activo es el del grupo seleccionado externamente (filtroTipo) cuando dim=TIPO,
   // o null para otras dims (los filtros cross-chart siguen siendo solo por TIPO por ahora)
@@ -239,7 +244,7 @@ export default function TreemapChart({ tenencias, dim: dimProp, filtroTipo, onFi
             content={<CustomCell filtroActivo={filtroActivo} />}
             onClick={handleClick}
           >
-            <Tooltip content={<TooltipContent hideValues={hideValues} />} />
+            <Tooltip content={<TooltipContent hideValues={hideValues} moneda={moneda} />} />
           </Treemap>
         </ResponsiveContainer>
       </div>

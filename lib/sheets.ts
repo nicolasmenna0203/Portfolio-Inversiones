@@ -61,7 +61,7 @@ export async function fetchDashboardData(): Promise<DashboardData> {
   const [rawActivos, rawMovimientos, rawTenencias] =
     await Promise.all([
       readSheet(id, 'Activos!A:G'),
-      readSheet(id, 'Movimientos!A:C'),
+      readSheet(id, 'Movimientos!A:D'),
       readSheet(id, 'Tenencias!A:D'),
     ]);
 
@@ -79,16 +79,20 @@ export async function fetchDashboardData(): Promise<DashboardData> {
   const activoMap = new Map(activos.map((a) => [a.TICKER, a]));
 
   // ── Movimientos ────────────────────────────────────────────────────────────
+  // monto_ars viene de la columna Monto (ARS), calculada al MEP del día exacto de
+  // cada movimiento (no un MEP de cierre de mes) — más preciso para agregar aportes.
   const movimientos: MovimientoRow[] = rawMovimientos
     .map((r) => {
       const ts = parseFechaDia(r['Fecha'] ?? r['FECHA'] ?? '');
       const monto = parseArgNum(r['Monto (USD)'] ?? r['MONTO (USD)']);
+      const montoArs = parseArgNum(r['Monto (ARS)'] ?? r['MONTO (ARS)']) ?? 0;
       const tipo = (r['Ingreso/Salida'] ?? r['INGRESO/SALIDA'] ?? '')
         .trim()
         .toLowerCase() as 'ingreso' | 'salida';
       if (!ts || monto == null) return null;
       const monto_neto = tipo === 'ingreso' ? monto : -Math.abs(monto);
-      return { fecha: ts, monto_usd: monto, tipo, monto_neto };
+      const monto_neto_ars = tipo === 'ingreso' ? montoArs : -Math.abs(montoArs);
+      return { fecha: ts, monto_usd: monto, monto_ars: montoArs, tipo, monto_neto, monto_neto_ars };
     })
     .filter(Boolean) as MovimientoRow[];
 
@@ -96,6 +100,9 @@ export async function fetchDashboardData(): Promise<DashboardData> {
 
 
   // ── Tenencias ──────────────────────────────────────────────────────────────
+  // Tenencia (ARS) ya viene completa en el Sheet para toda fila con tenencia_usd > 0
+  // (las cargas vía PDF de Cocos la traen calculada; el histórico legacy se completó
+  // una vez con scripts/backfill-ars.ts usando el MEP del día exacto de cada fila).
   const tenencias: TenenciaRow[] = rawTenencias
     .map((r) => {
       const ts = parseFechaDia(r['Fecha'] ?? r['FECHA'] ?? '');
@@ -164,11 +171,14 @@ export async function fetchDashboardData(): Promise<DashboardData> {
       (mv) => mv.fecha >= fechaTs && mv.fecha < messiguiente
     );
     const aportesMes = movDelMes.reduce((sum, mv) => sum + mv.monto_neto, 0);
+    // Cada movimiento ya viene convertido al MEP de su propio día — sumarlos así
+    // es más preciso que convertir el total del mes con un único MEP de cierre.
+    const aportesMesArs = movDelMes.reduce((sum, mv) => sum + mv.monto_neto_ars, 0);
 
     // Acumulado: todos los movimientos hasta el fin de este mes
-    const acumuladoAcum = movimientos
-      .filter((mv) => mv.fecha < messiguiente)
-      .reduce((sum, mv) => sum + mv.monto_neto, 0);
+    const movHastaFinMes = movimientos.filter((mv) => mv.fecha < messiguiente);
+    const acumuladoAcum = movHastaFinMes.reduce((sum, mv) => sum + mv.monto_neto, 0);
+    const acumuladoAcumArs = movHastaFinMes.reduce((sum, mv) => sum + mv.monto_neto_ars, 0);
 
     const total_cartera = totalPorMes[mes] ?? 0;
     const total_cartera_ars = totalPorMesArs[mes] ?? 0;
@@ -176,7 +186,9 @@ export async function fetchDashboardData(): Promise<DashboardData> {
       fecha: formatMesLabel(fechaTs),
       fechaTs,
       aportes: aportesMes,
+      aportes_ars: aportesMesArs,
       acumulado: acumuladoAcum,
+      acumulado_ars: acumuladoAcumArs,
       total_cartera,
       total_cartera_ars,
       rendimiento: total_cartera - acumuladoAcum,

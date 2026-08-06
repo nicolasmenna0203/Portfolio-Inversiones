@@ -5,12 +5,13 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, Legend,
   CartesianGrid, ResponsiveContainer,
 } from 'recharts';
-import type { IngresosResponse } from '@/types';
-import { fmtARS, fmtUSD } from '@/lib/parser';
+import type { IngresosResponse, IngresoRow } from '@/types';
+import { fmtARS, fmtUSD, type Moneda } from '@/lib/parser';
 import KPICard from './KPICard';
 
 interface Props {
   hideValues: boolean;
+  moneda?: Moneda;
 }
 
 // Paleta fija por empleador, asignada en orden de aparición (nunca por índice
@@ -25,8 +26,9 @@ interface TooltipPayload {
   dataKey: string;
 }
 
-function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: TooltipPayload[]; label?: string }) {
+function CustomTooltip({ active, payload, label, moneda }: { active?: boolean; payload?: TooltipPayload[]; label?: string; moneda?: Moneda }) {
   if (!active || !payload?.length) return null;
+  const fmt = moneda === 'USD' ? fmtUSD : fmtARS;
   return (
     <div style={{
       background: 'var(--card)', border: '1px solid var(--border)',
@@ -38,7 +40,7 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
         p.value > 0 && (
           <p key={p.dataKey} style={{ margin: '2px 0', color: p.color, display: 'flex', justifyContent: 'space-between', gap: 12 }}>
             <span>{p.name}</span>
-            <strong>{fmtARS(p.value)}</strong>
+            <strong>{fmt(p.value)}</strong>
           </p>
         )
       ))}
@@ -46,7 +48,7 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
   );
 }
 
-export default function IngresosSection({ hideValues }: Props) {
+export default function IngresosSection({ hideValues, moneda = 'ARS' }: Props) {
   const [resp, setResp] = useState<IngresosResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -70,17 +72,24 @@ export default function IngresosSection({ hideValues }: Props) {
     return map;
   }, [resp]);
 
-  // Serie mensual: una barra apilada por empleador, en ARS.
+  // Monto de un ingreso en la moneda pedida. montoUsd ya viene calculado desde
+  // el origen (carga del PDF) con el MEP del día exacto de esa acreditación —
+  // no se recalcula acá con un MEP distinto, sería menos preciso que el dato real.
+  function montoEn(r: IngresoRow, m: Moneda): number {
+    return m === 'ARS' ? r.montoArs : r.montoUsd;
+  }
+
+  // Serie mensual: una barra apilada por empleador, reactiva al toggle USD/ARS del header.
   const chartData = useMemo(() => {
     if (!resp) return [];
     return resp.porMes.map((m) => {
       const row: Record<string, number | string> = { mes: m.fecha };
       for (const emp of resp.empleadores) {
-        row[emp] = m.rows.filter((r) => r.empleador === emp).reduce((s, r) => s + r.montoArs, 0);
+        row[emp] = m.rows.filter((r) => r.empleador === emp).reduce((s, r) => s + montoEn(r, moneda), 0);
       }
       return row;
     });
-  }, [resp]);
+  }, [resp, moneda]);
 
   // Cada cuántas barras mostrar una etiqueta en el eje X: con muchos meses,
   // mostrar todas las etiquetas las superpone. En vez de pasarle a Recharts una
@@ -95,8 +104,11 @@ export default function IngresosSection({ hideValues }: Props) {
     const totalArs = resp.ingresos.reduce((s, r) => s + r.montoArs, 0);
     const totalUsd = resp.ingresos.reduce((s, r) => s + r.montoUsd, 0);
     const ultimoMes = resp.porMes[resp.porMes.length - 1];
-    return { totalArs, totalUsd, ultimoMes };
-  }, [resp]);
+    const ultimoMesPrincipal = ultimoMes
+      ? ultimoMes.rows.reduce((s, r) => s + montoEn(r, moneda), 0)
+      : null;
+    return { totalArs, totalUsd, ultimoMes, ultimoMesPrincipal };
+  }, [resp, moneda]);
 
   if (loading) {
     return (
@@ -133,20 +145,22 @@ export default function IngresosSection({ hideValues }: Props) {
     }}>
       <div className="kpi-grid">
         <KPICard
-          label="Total acumulado (ARS)"
-          value={hideValues ? '***' : fmtARS(kpis!.totalArs)}
+          label={`Total acumulado (${moneda})`}
+          value={hideValues ? '***' : moneda === 'ARS' ? fmtARS(kpis!.totalArs) : fmtUSD(kpis!.totalUsd)}
           sub={`${resp.empleadores.length} empleador${resp.empleadores.length !== 1 ? 'es' : ''}`}
           accentColor="var(--primary)"
         />
         <KPICard
-          label="Total acumulado (USD)"
-          value={hideValues ? '***' : kpis!.totalUsd > 0 ? fmtUSD(kpis!.totalUsd) : 's/d'}
-          sub="ingresos acreditados en dólares"
+          label={`Total acumulado (${moneda === 'ARS' ? 'USD' : 'ARS'})`}
+          value={hideValues ? '***' : moneda === 'ARS'
+            ? (kpis!.totalUsd > 0 ? fmtUSD(kpis!.totalUsd) : 's/d')
+            : fmtARS(kpis!.totalArs)}
+          sub="equivalente en la otra moneda"
           accentColor="var(--primary)"
         />
         <KPICard
           label="Último mes"
-          value={hideValues ? '***' : kpis!.ultimoMes ? fmtARS(kpis!.ultimoMes.totalArs) : 's/d'}
+          value={hideValues ? '***' : kpis!.ultimoMesPrincipal != null ? (moneda === 'ARS' ? fmtARS(kpis!.ultimoMesPrincipal) : fmtUSD(kpis!.ultimoMesPrincipal)) : 's/d'}
           sub={kpis!.ultimoMes?.fecha ?? ''}
           accentColor="var(--up)"
         />
@@ -158,7 +172,7 @@ export default function IngresosSection({ hideValues }: Props) {
         display: 'flex', flexDirection: 'column',
       }}>
         <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--muted)', margin: '0 0 12px', flexShrink: 0 }}>
-          Ingresos por mes y empleador (ARS)
+          Ingresos por mes y empleador ({moneda})
         </p>
         <ResponsiveContainer width="100%" height={280} minHeight={280}>
           <BarChart data={chartData} barCategoryGap="20%">
@@ -181,7 +195,7 @@ export default function IngresosSection({ hideValues }: Props) {
               tickFormatter={(v) => hideValues ? '***' : new Intl.NumberFormat('es-AR', { notation: 'compact' }).format(v)}
               width={hideValues ? 40 : 56}
             />
-            <Tooltip content={hideValues ? () => null : <CustomTooltip />} />
+            <Tooltip content={hideValues ? () => null : <CustomTooltip moneda={moneda} />} />
             {resp.empleadores.length > 1 && <Legend wrapperStyle={{ fontSize: 12, textTransform: 'uppercase' }} />}
             {resp.empleadores.map((emp) => (
               <Bar key={emp} dataKey={emp} stackId="ingresos" fill={empleadorColor.get(emp)} radius={[2, 2, 0, 0]} />

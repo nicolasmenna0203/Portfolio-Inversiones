@@ -101,25 +101,26 @@ const [uploadOpen, setUploadOpen] = useState(false);
   const primerMesKey = resumenSeries.length > 0 ? toMesKey(resumenSeries[0].fechaTs) : null;
   const { mepPorMes } = useFx(primerMesKey);
 
-  // KPIs derivados de movimientos (solo tienen monto en USD en el Sheet) recalculados
-  // en ARS convirtiendo cada aporte mensual con el MEP histórico de su propio mes.
-  // Si falta el dato de MEP de algún mes del rango, el resultado queda en null (no NaN).
+  // MEP real más reciente conocido — solo lectura, se usa para convertir a ARS
+  // el valor "hoy" de la cartera en todos los tabs (Resumen, Tenencias, Informe, Ingresos).
+  const mepActual = useMemo(() => {
+    const keys = Array.from(mepPorMes.keys()).sort();
+    return keys.length > 0 ? mepPorMes.get(keys[keys.length - 1])! : null;
+  }, [mepPorMes]);
+
+  // KPIs derivados de movimientos, en ARS. aportes_ars ya viene calculado por
+  // movimiento con el MEP del día exacto de cada uno (no un MEP de cierre de mes
+  // aplicado al total) — ver lib/sheets.ts. El total de cartera usa
+  // kpis.totalCarteraArs, ya calculado en origen con el MEP real de cierre.
   const kpisArs = useMemo(() => {
     if (moneda === 'USD') return null;
-    let acumuladoArs = 0;
-    let faltaDato = false;
-    for (const r of resumenSeries) {
-      const mep = mepPorMes.get(toMesKey(r.fechaTs));
-      if (mep == null) { faltaDato = true; break; }
-      acumuladoArs += r.aportes * mep;
-    }
-    if (faltaDato) return null;
+    const acumuladoArs = resumenSeries.reduce((sum, r) => sum + r.aportes_ars, 0);
     const rendimientoNetoArs = kpis.totalCarteraArs - acumuladoArs;
     const rendimientoPctArs = acumuladoArs > 0 ? (rendimientoNetoArs / acumuladoArs) * 100 : 0;
     const penultimo = resumenSeries[resumenSeries.length - 2];
     const deltaCarteraArs = penultimo != null ? kpis.totalCarteraArs - penultimo.total_cartera_ars : 0;
     return { rendimientoNetoArs, rendimientoPctArs, deltaCarteraArs };
-  }, [moneda, resumenSeries, mepPorMes, kpis.totalCarteraArs]);
+  }, [moneda, resumenSeries, kpis.totalCarteraArs]);
 
   // Filtros cross-chart
   const [filtroTipo,   setFiltroTipo]   = useState<string | null>(null);
@@ -198,6 +199,11 @@ const [uploadOpen, setUploadOpen] = useState(false);
             Al{' '}
             <span style={{ color: 'var(--text-sec)', fontWeight: 500 }}>{kpis.fechaStr}</span>
           </p>
+          {moneda === 'ARS' && mepActual != null && (
+            <p title="Dólar MEP usado para convertir a pesos" style={{ fontSize: 12, color: 'var(--muted)', margin: 0, whiteSpace: 'nowrap' }}>
+              MEP <span style={{ color: 'var(--text-sec)', fontWeight: 600 }}>${mepActual.toFixed(0)}</span>
+            </p>
+          )}
           <button
             className="theme-toggle"
             onClick={toggleMoneda}
@@ -391,7 +397,7 @@ const [uploadOpen, setUploadOpen] = useState(false);
           </div>
 
           <div className="resumen-chart-wrap" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-            <EvolucionChart data={resumenSeries} tenenciasPorMes={tenenciasPorMes} hideValues={hideValues} moneda={moneda} mepPorMes={mepPorMes} />
+            <EvolucionChart data={resumenSeries} tenenciasPorMes={tenenciasPorMes} hideValues={hideValues} moneda={moneda} />
           </div>
         </section>
       )}
@@ -462,6 +468,7 @@ const [uploadOpen, setUploadOpen] = useState(false);
               filtroTipo={filtroTipo}
               onFiltroTipo={(t) => setFiltroTipo(prev => prev === t ? null : t)}
               hideValues={hideValues}
+              moneda={moneda}
             />
             <EvolucionTipoChart
               tenenciasPorMes={tenenciasPorMes}
@@ -470,6 +477,7 @@ const [uploadOpen, setUploadOpen] = useState(false);
               mesSel={mesSel}
               onMesClick={(fecha) => { if (mesesDisponibles.includes(fecha)) setMesSel(fecha); }}
               hideValues={hideValues}
+              moneda={moneda}
             />
           </div>
         </section>
@@ -486,6 +494,7 @@ const [uploadOpen, setUploadOpen] = useState(false);
             mesesDisponibles={mesesDisponibles}
             totalPorMes={totalPorMes}
             hideValues={hideValues}
+            moneda={moneda}
           />
         </section>
       )}
@@ -528,7 +537,7 @@ const [uploadOpen, setUploadOpen] = useState(false);
       {/* ── Tab: Ingresos (sueldos/haberes por empleador, ARS/USD) ────────────── */}
       {tab === 'ingresos' && (
         <section className="tab-scroll" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-          <IngresosSection hideValues={hideValues} />
+          <IngresosSection hideValues={hideValues} moneda={moneda} />
         </section>
       )}
 

@@ -22,29 +22,27 @@ interface Props {
   tenenciasPorMes: Record<string, TenenciaActual[]>;
   hideValues?: boolean;
   moneda?: Moneda;
-  mepPorMes?: Map<string, number>;
 }
 
 function buildData(
   data: ResumenRow[],
   tenenciasPorMes: Record<string, TenenciaActual[]>,
   moneda: Moneda,
-  mepPorMes: Map<string, number>,
 ) {
   return data.map((row, i) => {
     const d = new Date(row.fechaTs);
     const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 
-    // total_cartera ya tiene contraparte ARS directa (sin MEP). acumulado/aportes
-    // vienen de movimientos (solo USD) y necesitan el MEP del mes de esta fila.
-    const mep = mepPorMes.get(key);
+    // total_cartera_ars, acumulado_ars y aportes_ars ya vienen calculados desde el
+    // origen (Sheet) — cada movimiento convertido al MEP de su propio día, no un
+    // MEP de cierre de mes aplicado al total. No se recalcula nada acá.
     const totalCartera = moneda === 'ARS' ? row.total_cartera_ars : row.total_cartera;
-    const acumulado = moneda === 'USD' ? row.acumulado : mep != null ? row.acumulado * mep : undefined;
-    const aportes = moneda === 'USD' ? row.aportes : mep != null ? row.aportes * mep : undefined;
+    const acumulado = moneda === 'ARS' ? row.acumulado_ars : row.acumulado;
+    const aportes = moneda === 'ARS' ? row.aportes_ars : row.aportes;
 
     const prevRow = i > 0 ? data[i - 1] : null;
     const prevTotalCartera = prevRow != null ? (moneda === 'ARS' ? prevRow.total_cartera_ars : prevRow.total_cartera) : null;
-    const ganancia = prevTotalCartera !== null && aportes !== undefined
+    const ganancia = prevTotalCartera !== null
       ? (totalCartera - prevTotalCartera) - aportes
       : null;
 
@@ -103,8 +101,8 @@ function TooltipContent({ active, payload, label, hideValues, moneda }: any) {
   );
 }
 
-export default function EvolucionChart({ data, tenenciasPorMes, hideValues, moneda = 'USD', mepPorMes }: Props) {
-  const chartData = buildData(data, tenenciasPorMes, moneda, mepPorMes ?? new Map());
+export default function EvolucionChart({ data, tenenciasPorMes, hideValues, moneda = 'USD' }: Props) {
+  const chartData = buildData(data, tenenciasPorMes, moneda);
   const [isMobile, setIsMobile] = useState(false);
 
 

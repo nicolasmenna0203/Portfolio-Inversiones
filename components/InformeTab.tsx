@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import type { ResumenRow, TenenciaActual } from '@/types';
-import { fmtUSD, fmtPct } from '@/lib/parser';
+import { fmtUSD, fmtARS, fmtPct, type Moneda } from '@/lib/parser';
 import {
   PALETA_TIPO, RIESGO_COLOR, RIESGO_LABEL, MONEDA_COLOR,
   RENTA_COLOR, GEO_COLOR, MONEDA_LABEL, RENTA_LABEL, GEO_LABEL,
@@ -19,17 +19,18 @@ interface Props {
   mesesDisponibles: string[];
   totalPorMes: Record<string, number>;
   hideValues: boolean;
+  moneda?: Moneda;
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 function signo(n: number) { return n >= 0 ? '▲' : '▼'; }
 
-function VariacionBadge({ value, pct }: { value: number; pct: number }) {
+function VariacionBadge({ value, pct, fmt }: { value: number; pct: number; fmt: (n: number) => string }) {
   const color = value >= 0 ? 'var(--up)' : 'var(--down)';
   return (
     <span style={{ color, fontWeight: 700, fontSize: 12, whiteSpace: 'nowrap' }}>
-      {signo(value)} {fmtUSD(Math.abs(value))} ({fmtPct(pct)})
+      {signo(value)} {fmt(Math.abs(value))} ({fmtPct(pct)})
     </span>
   );
 }
@@ -79,14 +80,17 @@ function getColor(dim: DimKey, key: string): string {
   return colorPorCategoria(key);
 }
 
-function calcTotalDim(items: TenenciaActual[], dim: DimKey): Record<string, number> {
+function calcTotalDim(items: TenenciaActual[], dim: DimKey, moneda: Moneda): Record<string, number> {
+  // tenencia_ars/tenencia_usd ya vienen calculados desde el origen (Sheet) para
+  // cada mes con su MEP de cierre real — no se recalculan acá.
+  const campo = moneda === 'ARS' ? 'tenencia_ars' : 'tenencia_usd';
   const acc: Record<string, number> = {};
   const src = dim === 'SECTOR_GEO'
     ? items.filter(t => t.RENTA === 'VAR' || t.RENTA === 'VARIABLE')
     : items;
   for (const t of src) {
     const k = String(t[dim]);
-    acc[k] = (acc[k] ?? 0) + t.tenencia_usd;
+    acc[k] = (acc[k] ?? 0) + t[campo];
   }
   return acc;
 }
@@ -103,9 +107,13 @@ interface DimRow {
   pctAct: number;  // participación relativa mes actual
 }
 
-function DimChips({ rows, totalAnterior: _ }: { rows: DimRow[]; totalAnterior: number }) {
+function DimChips({ rows, totalAnterior: _, moneda }: { rows: DimRow[]; totalAnterior: number; moneda: Moneda }) {
   // total del grupo para mapear el delta en la misma escala que pctAct
   const totalGrupo = rows.reduce((s, r) => s + r.actual, 0) || 1;
+
+  // actual/anterior ya vienen en la moneda correcta (tenencia_ars o tenencia_usd
+  // reales del Sheet, según corresponda) — acá solo se elige el formateador.
+  const fmt = moneda === 'ARS' ? fmtARS : fmtUSD;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -126,7 +134,6 @@ function DimChips({ rows, totalAnterior: _ }: { rows: DimRow[]; totalAnterior: n
           : 0;
         const wSegWidth = r.anterior > 0 ? wDelta : wAct;
         const labelAt   = Math.min(Math.max(wSegStart + wSegWidth / 2, 1), 98);
-        const flip = false; // centrado siempre usa translateX(-50%)
 
         return (
           <div key={r.rawKey} style={{
@@ -139,7 +146,7 @@ function DimChips({ rows, totalAnterior: _ }: { rows: DimRow[]; totalAnterior: n
             <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
               <div style={{ width: 7, height: 7, borderRadius: '50%', background: r.color, flexShrink: 0 }} />
               <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-sec)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>{r.label}</span>
-              <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)', lineHeight: 1 }}>{fmtUSD(r.actual)}</span>
+              <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)', lineHeight: 1 }}>{fmt(r.actual)}</span>
               <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-sec)', lineHeight: 1 }}>{r.pctAct.toFixed(1)}%</span>
               {r.anterior > 0 && (
                 <span style={{ fontSize: 10, fontWeight: 600, color: delta >= 0 ? 'var(--up)' : 'var(--down)', lineHeight: 1 }}>
@@ -185,7 +192,7 @@ function DimChips({ rows, totalAnterior: _ }: { rows: DimRow[]; totalAnterior: n
                 fontSize: 10, fontWeight: 700, color: varColor,
                 whiteSpace: 'nowrap', lineHeight: '16px',
               }}>
-                {delta >= 0 ? '+' : ''}{fmtUSD(delta)}{r.anterior > 0 ? ` (${delta >= 0 ? '+' : ''}${deltaPct.toFixed(1)}%)` : ''}
+                {deltaPositivo ? '+' : ''}{fmt(delta)}{r.anterior > 0 ? ` (${deltaPositivo ? '+' : ''}${deltaPct.toFixed(1)}%)` : ''}
               </span>
             </div>
           </div>
@@ -203,13 +210,14 @@ export default function InformeTab({
   mesesDisponibles,
   totalPorMes,
   hideValues,
+  moneda = 'USD',
 }: Props) {
   const puedeAnalizar = resumenSeries.length >= 2;
 
   const computed = useMemo(() => {
     if (!puedeAnalizar) return null;
-    return computeInforme(resumenSeries, tenenciasPorMes, mesesDisponibles, totalPorMes);
-  }, [resumenSeries, tenenciasPorMes, mesesDisponibles, totalPorMes, puedeAnalizar]);
+    return computeInforme(resumenSeries, tenenciasPorMes, mesesDisponibles, totalPorMes, moneda);
+  }, [resumenSeries, tenenciasPorMes, mesesDisponibles, totalPorMes, puedeAnalizar, moneda]);
 
   if (!puedeAnalizar || !computed) {
     return (
@@ -243,7 +251,7 @@ export default function InformeTab({
           <div key={key}>
             <SectionTitle>{label}</SectionTitle>
             <div style={{ marginTop: 10 }}>
-              <DimChips rows={rows} totalAnterior={cartAnterior} />
+              <DimChips rows={rows} totalAnterior={cartAnterior} moneda={moneda} />
             </div>
           </div>
         );
@@ -268,6 +276,7 @@ function computeInforme(
   tenenciasPorMes: Record<string, TenenciaActual[]>,
   mesesDisponibles: string[],
   totalPorMes: Record<string, number>,
+  moneda: Moneda,
 ) {
   const sorted     = Object.keys(tenenciasPorMes).sort();
   const keyActual  = sorted[sorted.length - 1];
@@ -305,8 +314,8 @@ function computeInforme(
   const dimVariaciones = {} as DimVariacionMap;
 
   for (const dim of DIMS) {
-    const mapAct = calcTotalDim(tenActual, dim);
-    const mapAnt = calcTotalDim(tenAnt,    dim);
+    const mapAct = calcTotalDim(tenActual, dim, moneda);
+    const mapAnt = calcTotalDim(tenAnt,    dim, moneda);
     const totalAct = Object.values(mapAct).reduce((s, v) => s + v, 0) || 1;
     const totalAnt = Object.values(mapAnt).reduce((s, v) => s + v, 0) || 1;
     const keys = Array.from(new Set([...Object.keys(mapAct), ...Object.keys(mapAnt)]));
@@ -326,6 +335,7 @@ function computeInforme(
 
   return {
     mesActual, mesAnterior,
+    keyActual, keyAnt,
     cartActual, cartAnterior, deltaCartera, pctCartera,
     aportActual, aportAnterior, deltaAporte,
     gananciaPura, pctGananciaPura,

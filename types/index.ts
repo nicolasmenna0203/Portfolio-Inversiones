@@ -2,7 +2,11 @@ export interface ResumenRow {
   fecha: string;       // "Mar-2024"
   fechaTs: number;     // timestamp ms
   aportes: number;
+  /** Suma de monto_ars de cada movimiento del mes (cada uno al MEP de su propio día), no aportes * MEP de cierre de mes. */
+  aportes_ars: number;
   acumulado: number;
+  /** Suma de monto_neto_ars de todos los movimientos hasta el fin de este mes (cada uno al MEP de su día). */
+  acumulado_ars: number;
   total_cartera: number;
   total_cartera_ars: number;
   rendimiento: number;
@@ -11,8 +15,12 @@ export interface ResumenRow {
 export interface MovimientoRow {
   fecha: number;       // timestamp ms
   monto_usd: number;
+  /** Monto en ARS al MEP del día exacto del movimiento (columna Monto (ARS) del Sheet). */
+  monto_ars: number;
   tipo: 'ingreso' | 'salida';
   monto_neto: number;  // positivo = ingreso, negativo = salida
+  /** monto_neto convertido a ARS con el MEP del día exacto (signo según ingreso/salida). */
+  monto_neto_ars: number;
 }
 
 export interface ActivoRow {

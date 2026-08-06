@@ -14,7 +14,7 @@ import {
 } from 'recharts';
 import type { TenenciaActual } from '@/types';
 import { PALETA_TIPO, RIESGO_COLOR, RIESGO_LABEL, RENTA_LABEL, GEO_LABEL, MONEDA_LABEL, MONEDA_COLOR, RENTA_COLOR, GEO_COLOR, colorPorCategoria } from '@/lib/constants';
-import { fmtUSD } from '@/lib/parser';
+import { fmtUSD, fmtARS, type Moneda } from '@/lib/parser';
 
 interface Props {
   tenenciasPorMes: Record<string, TenenciaActual[]>;
@@ -23,6 +23,7 @@ interface Props {
   mesSel?: string;
   onMesClick?: (fecha: string) => void;
   hideValues?: boolean;
+  moneda?: Moneda;
 }
 
 const DIMS = [
@@ -59,8 +60,12 @@ function buildData(
   tenenciasPorMes: Record<string, TenenciaActual[]>,
   mesesDisponibles: string[],
   dim: Dim,
-  groups: string[]
+  groups: string[],
+  moneda: Moneda,
 ) {
+  // tenencia_ars/tenencia_usd ya vienen calculados desde el origen (Sheet) para
+  // cada mes con su MEP de cierre real — no se recalculan acá.
+  const campo = moneda === 'ARS' ? 'tenencia_ars' : 'tenencia_usd';
   const sortedKeys = Object.keys(tenenciasPorMes).sort();
   return sortedKeys.map((key, i) => {
     const allRows = tenenciasPorMes[key] ?? [];
@@ -71,15 +76,16 @@ function buildData(
     for (const g of groups) {
       entry[g] = rows
         .filter((r) => getGroupLabel(r, dim) === g)
-        .reduce((s, r) => s + r.tenencia_usd, 0);
+        .reduce((s, r) => s + r[campo], 0);
     }
     return entry;
   });
 }
 
-function TooltipContent({ active, payload, label, mode, hideValues }: any) {
+function TooltipContent({ active, payload, label, mode, hideValues, moneda }: any) {
   if (!active || !payload?.length) return null;
 
+  const fmt = moneda === 'ARS' ? fmtARS : fmtUSD;
   const nominalTotal = payload.reduce((s: number, p: any) => s + (p.value ?? 0), 0);
   const rows = [...payload].reverse().filter((p: any) => (p.value ?? 0) > 0);
 
@@ -96,14 +102,14 @@ function TooltipContent({ active, payload, label, mode, hideValues }: any) {
       <p style={{ fontWeight: 600, color: 'var(--text-sec)', marginBottom: 6, fontSize: 11 }}>{label}</p>
       {mode === 'nominal' && (
         <p style={{ color: 'var(--muted)', marginBottom: 6, fontSize: 11 }}>
-          Total: {hideValues ? '···' : fmtUSD(nominalTotal)}
+          Total: {hideValues ? '···' : fmt(nominalTotal)}
         </p>
       )}
       {rows.map((p: any) => {
         const pct = nominalTotal > 0 ? (p.value / nominalTotal) * 100 : 0;
         const display = (mode === 'pct' || hideValues)
           ? `${pct.toFixed(1)}%`
-          : `${fmtUSD(p.value)} · ${pct.toFixed(1)}%`;
+          : `${fmt(p.value)} · ${pct.toFixed(1)}%`;
         return (
           <p key={p.dataKey} style={{ color: p.color, marginBottom: 2 }}>
             <span style={{ color: 'var(--muted)', marginRight: 6 }}>{p.name}:</span>
@@ -115,7 +121,7 @@ function TooltipContent({ active, payload, label, mode, hideValues }: any) {
   );
 }
 
-export default function EvolucionTipoChart({ tenenciasPorMes, mesesDisponibles, dim: dimProp, mesSel, onMesClick, hideValues }: Props) {
+export default function EvolucionTipoChart({ tenenciasPorMes, mesesDisponibles, dim: dimProp, mesSel, onMesClick, hideValues, moneda = 'USD' }: Props) {
   const [dimLocal, setDimLocal] = useState<Dim>('TIPO');
   const dim = dimProp ?? dimLocal;
   const [mode, setMode] = useState<Mode>('nominal');
@@ -128,11 +134,11 @@ export default function EvolucionTipoChart({ tenenciasPorMes, mesesDisponibles, 
     for (const r of src) groupsSet.add(getGroupLabel(r, dim));
   }
   const groups = Array.from(groupsSet).sort();
-  const data   = buildData(tenenciasPorMes, mesesDisponibles, dim, groups);
+  const data   = buildData(tenenciasPorMes, mesesDisponibles, dim, groups, moneda);
 
   const yFormatter = mode === 'pct'
     ? (v: number) => `${Math.round(v * 100)}%`
-    : (v: number) => hideValues ? '···' : `$${(v / 1000).toFixed(0)}k`;
+    : (v: number) => hideValues ? '···' : `${moneda === 'ARS' ? 'AR$' : '$'}${(v / 1000).toFixed(0)}k`;
 
   return (
     <div style={{
@@ -243,7 +249,7 @@ export default function EvolucionTipoChart({ tenenciasPorMes, mesesDisponibles, 
             width={52}
             domain={mode === 'pct' ? [0, 1] : undefined}
           />
-          <Tooltip content={(props) => <TooltipContent {...props} mode={mode} hideValues={hideValues} />} />
+          <Tooltip content={(props) => <TooltipContent {...props} mode={mode} hideValues={hideValues} moneda={moneda} />} />
           {mesSel && (
             <ReferenceLine
               x={mesSel}
