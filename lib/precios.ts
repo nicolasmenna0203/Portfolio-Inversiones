@@ -168,6 +168,22 @@ export async function preciosBonosArs(tickers: string[]): Promise<Record<string,
   return out;
 }
 
+/**
+ * Precio ARS por 100 nominales de símbolos que NO están en MAPEO_BONOS_ARG
+ * (provinciales, Bonos de Consolidación): se piden por símbolo exacto de
+ * data912, sin pasar por el mapeo de tickers de cartera. Lo usa
+ * bonosProvinciales.ts, que calcula TIR/duration a partir de este precio.
+ */
+export async function preciosBonosPorSimbolo(simbolos: string[]): Promise<Record<string, number>> {
+  const todos = await fetchTodosPreciosBonos();
+  const out: Record<string, number> = {};
+  for (const s of simbolos) {
+    const px = todos[s.toUpperCase()];
+    if (px != null && px > 0) out[s.toUpperCase()] = px;
+  }
+  return out;
+}
+
 // ── Dólar MEP spot ───────────────────────────────────────────────────────────
 
 let cacheMep: { valor: number; ts: number } | null = null;

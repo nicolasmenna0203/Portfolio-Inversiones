@@ -181,6 +181,14 @@ export interface BondPerformance {
   vencimiento: string;      // "YYYY-MM-DD"
   diasAlVencimiento: number;
   sensibilidad: SensibilidadTir[];
+  /**
+   * true si TIR y duration las calculó el dashboard desde el flujo de fondos
+   * (bonos provinciales y de consolidación, que bonistas.com no cubre) en vez
+   * de tomarlas de bonistas. Distinta convención de cálculo y, en los de tasa
+   * variable, proyección de la tasa actual a futuro: la UI lo aclara para que
+   * no se lean como equivalentes al resto de la curva.
+   */
+  calculoPropio?: boolean;
   /** Presente solo si el ticker está en la cartera actual. */
   tenenciaUsd?: number;
 }

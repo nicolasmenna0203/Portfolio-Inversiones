@@ -1,5 +1,7 @@
 import type { BondPerformance, GrupoBono, GrupoPonderado, PerformanceResponse, SensibilidadTir } from '@/types';
 import { fetchBondMetrics } from './bondMetrics';
+import { calcularMetricasProvinciales, TICKERS_PROVINCIALES } from './bonosProvinciales';
+import { preciosBonosPorSimbolo } from './precios';
 
 const GRUPOS: GrupoBono[] = ['USD', 'CER', 'ARS_TASA', 'DOLLAR_LINKED', 'BOPREAL'];
 const SHOCKS = [1, 2, 3, 5, 10];
@@ -29,9 +31,22 @@ function calcularSensibilidad(tir: number, duration: number): SensibilidadTir[] 
 export async function fetchPerformance(
   tenencias: Record<string, number> = {},
 ): Promise<PerformanceResponse> {
-  const metricsMap = await fetchBondMetrics();
+  // Los provinciales/consolidación no están en bonistas: sus métricas se
+  // calculan acá desde el flujo de fondos + precio de data912. Si esa fuente
+  // falla no se cae toda la sección, simplemente no aparecen esos puntos.
+  const [metricsMap, provinciales] = await Promise.all([
+    fetchBondMetrics(),
+    preciosBonosPorSimbolo(TICKERS_PROVINCIALES)
+      .then((precios) => calcularMetricasProvinciales(precios))
+      .catch(() => []),
+  ]);
 
-  const bonos: BondPerformance[] = [...metricsMap.values()]
+  // Un ticker calculado acá nunca pisa a uno de bonistas: si en algún momento
+  // bonistas empieza a cubrir provinciales, su dato (misma convención que el
+  // resto de la curva) tiene prioridad y esta lista queda inerte.
+  const soloNuevos = provinciales.filter((p) => !metricsMap.has(p.ticker));
+
+  const bonos: BondPerformance[] = [...metricsMap.values(), ...soloNuevos]
     .map((m) => {
       const tenenciaUsd = tenencias[m.tickerCartera ?? m.ticker];
       return {

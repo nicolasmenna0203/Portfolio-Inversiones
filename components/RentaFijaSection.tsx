@@ -421,6 +421,12 @@ export default function RentaFijaSection({ tenencias }: Props) {
           <span style={{ fontSize: 10, color: 'var(--muted)' }}>
             Un punto por bono · puntos grandes = posición en tu cartera · línea = tendencia del grupo (ajuste cuadrático) · acotado al rango de duration seleccionado
           </span>
+          {bonosDelGrupo.some((b) => b.calculoPropio) && (
+            <span style={{ fontSize: 10, color: 'var(--muted)' }}>
+              † Provinciales y Bonos de Consolidación: bonistas.com no los cubre, así que su TIR y duration las calcula el dashboard desde el flujo de fondos.
+              Los de tasa variable (TAMAR/Badlar) proyectan la tasa actual hasta el vencimiento — ubican el bono en la curva, no son una valuación exacta.
+            </span>
+          )}
         </div>
         <div ref={chartWrapRef} style={{ height: 320 }}>
           <ResponsiveContainer width="100%" height="100%">
@@ -585,6 +591,12 @@ export default function RentaFijaSection({ tenencias }: Props) {
                 >
                   <td style={{ padding: '7px 10px', fontWeight: 700, color: 'var(--text)' }}>
                     {b.ticker}{b.tenenciaUsd ? ' ★' : ''}
+                    {b.calculoPropio && (
+                      <span
+                        title="TIR y duration calculadas por el dashboard desde el flujo de fondos: bonistas.com no cubre deuda provincial ni Bonos de Consolidación. No son estrictamente comparables con las del resto de la curva."
+                        style={{ marginLeft: 3, color: 'var(--muted)', cursor: 'help' }}
+                      >†</span>
+                    )}
                     {b.etiqueta && (
                       <span style={{ marginLeft: 6, fontWeight: 600, fontSize: 10, color: 'var(--muted)' }}>
                         {b.etiqueta}

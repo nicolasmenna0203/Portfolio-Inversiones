@@ -28,6 +28,8 @@ export interface BondMetric {
   lastPrice: number | null;
   vencimiento: string;      // "YYYY-MM-DD"
   diasAlVencimiento: number;
+  /** true si TIR/duration se calcularon acá (ver bonosProvinciales.ts) en vez de venir de bonistas. */
+  calculoPropio?: boolean;
 }
 
 // bonistas.com también trae tir_down_N/tir_up_N (sensibilidad a shocks de
