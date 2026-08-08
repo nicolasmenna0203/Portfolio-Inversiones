@@ -1,37 +1,42 @@
 import { describe, it, expect } from 'vitest';
 import { parseHaberesText, limpiarEmpleador } from './haberes';
 
+// Los fixtures son sintéticos: replican el formato exacto de los resúmenes de
+// cuenta reales (posición del CUIT, códigos de lote, comprobantes fragmentados)
+// con razones sociales y CUIT ficticios. Los CUIT no son válidos por dígito
+// verificador, así que no corresponden a ninguna empresa real.
+
 describe('limpiarEmpleador', () => {
   it('saca CUIT y código de lote pegado al nombre', () => {
-    expect(limpiarEmpleador('30503317814 240130007renault argentina sa')).toBe('renault argentina sa');
+    expect(limpiarEmpleador('30111111111 240130007empresa uno sa')).toBe('empresa uno sa');
   });
 
   it('saca el dígito de sufijo pegado a la última palabra', () => {
-    expect(limpiarEmpleador('30503317814 240228007renault argentina sa2')).toBe('renault argentina sa');
+    expect(limpiarEmpleador('30111111111 240228007empresa uno sa2')).toBe('empresa uno sa');
   });
 
   it('saca "cuit" y el CUIT cuando aparecen después del nombre', () => {
-    expect(limpiarEmpleador('240327007renault argentina sa cuit 30503317814')).toBe('renault argentina sa');
+    expect(limpiarEmpleador('240327007empresa uno sa cuit 30111111111')).toBe('empresa uno sa');
   });
 
   it('cae a "CUIT <número>" cuando el pago es DEBIN y no hay nombre de empleador', () => {
-    expect(limpiarEmpleador('Id debin d4ro172vp1rr8p802kj3qe cuit 30712249338')).toBe('CUIT 30712249338');
+    expect(limpiarEmpleador('Id debin a1b2c3d4e5f6g7h8i9j0k1 cuit 30222222222')).toBe('CUIT 30222222222');
   });
 
   it('extrae el nombre cuando va ANTES del CUIT y descarta el comprobante fragmentado (formato interbanking)', () => {
-    expect(limpiarEmpleador('interbanking externa Voip experts srl 30712249338 02 30851 67')).toBe('Voip experts srl');
+    expect(limpiarEmpleador('interbanking externa Empresa dos srl 30222222222 02 30851 67')).toBe('Empresa dos srl');
   });
 });
 
 describe('parseHaberesText', () => {
-  const sampleText = `SuperCuenta Mi resumen de cuenta NICOLAS MENNA CUIL: 20-43272108-7 Movimientos en pesos Fecha Comprobante Movimiento Caja de Ahorro en pesos Saldo en cuenta 13/01/24 Saldo Inicial $ 0,67 $ 0,67 31/01/24 67332701 Acreditacion de haberes 30503317814 240130007renault argentina sa $ 276.000,00 $ 276.000,67 31/01/24 67495399 Transferencia no gravada A nicolas alejandro menna / varios - var / 20432721087 -$ 276.000,00 $ 0,67 29/02/24 68817961 Acreditacion de haberes 30503317814 240228007renault argentina sa2 $ 367.200,00 $ 367.200,67 27/03/24 70551592 Acreditacion de haberes 240327007renault argentina sa cuit 30503317814 $ 349.000,00 $ 349.000,00 Movimientos en dólares No tenés movimientos en dólares en este período.`;
+  const sampleText = `SuperCuenta Mi resumen de cuenta TITULAR DE PRUEBA CUIL: 20-00000000-0 Movimientos en pesos Fecha Comprobante Movimiento Caja de Ahorro en pesos Saldo en cuenta 13/01/24 Saldo Inicial $ 0,67 $ 0,67 31/01/24 67332701 Acreditacion de haberes 30111111111 240130007empresa uno sa $ 276.000,00 $ 276.000,67 31/01/24 67495399 Transferencia no gravada A titular de prueba / varios - var / 20000000000 -$ 276.000,00 $ 0,67 29/02/24 68817961 Acreditacion de haberes 30111111111 240228007empresa uno sa2 $ 367.200,00 $ 367.200,67 27/03/24 70551592 Acreditacion de haberes 240327007empresa uno sa cuit 30111111111 $ 349.000,00 $ 349.000,00 Movimientos en dólares No tenés movimientos en dólares en este período.`;
 
   it('extrae las acreditaciones de haberes con fecha, empleador y monto, ignorando otras líneas (ej. transferencias)', () => {
     const { rows } = parseHaberesText(sampleText);
     expect(rows).toHaveLength(3);
     expect(rows[0]).toEqual({
       fecha: '31/01/2024',
-      empleador: 'renault argentina sa',
+      empleador: 'empresa uno sa',
       montoArs: 276000,
       montoUsd: 0,
     });
@@ -49,27 +54,27 @@ describe('parseHaberesText', () => {
   });
 
   it('reconoce el formato DEBIN ("Acreditacion haberes debin", sin "de", sin nombre) usando el CUIT como empleador', () => {
-    const debinText = `Infinity Mi resumen de cuenta NICOLAS MENNA Movimientos en pesos Fecha Comprobante Movimiento Cuenta sueldo en pesos Cuenta Corriente en pesos Saldo en cuenta 03/07/26 Saldo Inicial $ 0,40 $ 0,00 $ 0,40 08/07/26 89653638 Acreditacion haberes debin Id debin d4ro172vp1rr8p802kj3qe cuit 30712249338 $ 1.967.232,55 $ 1.967.233,37 12/07/26 94541228 Transf recibida cvu mismo titular De nicolas alejandro menna / mercado pago /2043 2721087 $ 345.750,00 $ 2.312.983,37`;
+    const debinText = `Infinity Mi resumen de cuenta TITULAR DE PRUEBA Movimientos en pesos Fecha Comprobante Movimiento Cuenta sueldo en pesos Cuenta Corriente en pesos Saldo en cuenta 03/07/26 Saldo Inicial $ 0,40 $ 0,00 $ 0,40 08/07/26 89653638 Acreditacion haberes debin Id debin a1b2c3d4e5f6g7h8i9j0k1 cuit 30222222222 $ 1.900.000,55 $ 1.900.001,37 12/07/26 94541228 Transf recibida cvu mismo titular De titular de prueba / billetera virtual /2000 0000000 $ 345.750,00 $ 2.245.751,37`;
     const { rows } = parseHaberesText(debinText);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toEqual({
       fecha: '08/07/2026',
-      empleador: 'CUIT 30712249338',
-      montoArs: 1967232.55,
+      empleador: 'CUIT 30222222222',
+      montoArs: 1900000.55,
       montoUsd: 0,
     });
   });
 
   it('reconoce el formato "Pago haberes interbanking externa" (nombre antes del CUIT, comprobante fragmentado)', () => {
-    const interbankingText = `Infinity Mi resumen de cuenta NICOLAS MENNA Movimientos en pesos Fecha Comprobante Movimiento Cuenta sueldo en pesos Cuenta Corriente en pesos Saldo en cuenta 28/11/25 Saldo Inicial $ 446,34 $ 0,00 $ 446,34 05/12/25 3085167 Pago haberes interbanking externa Voip experts srl 30712249338 02 30851 67 $ 1.576.062,38 $ 1.576.508,72 23/12/25 3221086 Pago haberes interbanking externa Voip experts srl 30712249338 02 32210 86 $ 795.911,51 $ 796.001,52`;
+    const interbankingText = `Infinity Mi resumen de cuenta TITULAR DE PRUEBA Movimientos en pesos Fecha Comprobante Movimiento Cuenta sueldo en pesos Cuenta Corriente en pesos Saldo en cuenta 28/11/25 Saldo Inicial $ 446,34 $ 0,00 $ 446,34 05/12/25 3085167 Pago haberes interbanking externa Empresa dos srl 30222222222 02 30851 67 $ 1.500.000,38 $ 1.500.446,72 23/12/25 3221086 Pago haberes interbanking externa Empresa dos srl 30222222222 02 32210 86 $ 700.000,51 $ 700.090,52`;
     const { rows } = parseHaberesText(interbankingText);
     expect(rows).toHaveLength(2);
     expect(rows[0]).toEqual({
       fecha: '05/12/2025',
-      empleador: 'Voip experts srl',
-      montoArs: 1576062.38,
+      empleador: 'Empresa dos srl',
+      montoArs: 1500000.38,
       montoUsd: 0,
     });
-    expect(rows[1].montoArs).toBe(795911.51);
+    expect(rows[1].montoArs).toBe(700000.51);
   });
 });

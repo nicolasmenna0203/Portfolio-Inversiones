@@ -27,7 +27,7 @@ Los meses se piden en formato `YYYY-MM` (ej. `2026-07`). Si se omite, se usa el 
 |---|---|---|
 | `calendario_cobros` | Dividendos, cupones y amortizaciones próximas con monto neto estimado, más el yield de cada posición | Yahoo, Nasdaq, bonistas.com |
 | `renta_fija_bonos` | TIR, TNA, duration, paridad y vencimiento de los bonos en cartera, con ponderados por grupo de tasa | bonistas.com |
-| `renta_fija_fci` | VCP y rendimientos (día/mes/año/12m) de los FCI de Cocos | Planilla CAFCI |
+| `renta_fija_fci` | VCP y rendimientos (día/mes/año/12m) de los FCI del broker | Planilla CAFCI |
 | `renta_variable_acciones` | Precio, variaciones, P/E, market cap, 52 semanas y dividend yield | Yahoo Finance |
 | `comparar_benchmarks` | Cartera vs. S&P 500, inflación, MEP, Bitcoin y oro (índice base 100) | Varias |
 
@@ -64,12 +64,12 @@ Se corta con Ctrl+C. Por sí solo no hace nada: necesita un cliente MCP conectad
 
 ## Conectarlo a Claude Desktop
 
-**Ya está configurado.** El bloque se agregó a `%APPDATA%\Claude\claude_desktop_config.json`
-conservando las preferencias que ya tenía el archivo. Solo falta **reiniciar Claude Desktop
-por completo** (cerralo desde la bandeja del sistema, no solo la ventana) y las 11
-herramientas de `cartera` aparecen en el ícono de herramientas del cuadro de texto.
+El bloque va en `%APPDATA%\Claude\claude_desktop_config.json`, conservando las
+preferencias que ya tenga el archivo. Después hay que **reiniciar Claude Desktop por
+completo** (cerrarlo desde la bandeja del sistema, no solo la ventana) para que las 11
+herramientas de `cartera` aparezcan en el ícono de herramientas del cuadro de texto.
 
-Configuración aplicada, por si hay que rehacerla:
+Reemplazá `<RUTA-AL-PROYECTO>` por la ruta absoluta donde clonaste el repo:
 
 ```json
 {
@@ -77,8 +77,8 @@ Configuración aplicada, por si hay que rehacerla:
     "cartera": {
       "command": "C:\\Program Files\\nodejs\\node.exe",
       "args": [
-        "C:\\Users\\nicol\\OneDrive\\Desktop\\PRUEBA AGENTE CLAUDE\\node_modules\\tsx\\dist\\cli.mjs",
-        "C:\\Users\\nicol\\OneDrive\\Desktop\\PRUEBA AGENTE CLAUDE\\mcp\\server.ts"
+        "<RUTA-AL-PROYECTO>\\node_modules\\tsx\\dist\\cli.mjs",
+        "<RUTA-AL-PROYECTO>\\mcp\\server.ts"
       ]
     }
   }
@@ -91,14 +91,15 @@ Dos decisiones a tener en cuenta si algún día lo tocás:
   Desktop no hereda el PATH del shell, así que `npx` puede no resolver y el server no arranca.
 - **Las barras invertidas van dobladas**: es JSON, `\` es carácter de escape.
 
-> El archivo original quedó respaldado como
+> Conviene respaldar el archivo antes de editarlo, por ejemplo como
 > `claude_desktop_config.backup-AAAAMMDD-HHMMSS.json` en la misma carpeta.
 
 ## Proyecto de Claude Desktop
 
 Para no re-explicar el contexto en cada conversación, conviene crear un Proyecto con
-instrucciones propias. El texto listo para pegar está en
-[PROYECTO-CLAUDE.md](PROYECTO-CLAUDE.md).
+instrucciones propias (preferencias de formato, perfil del inversor, cómo se quieren las
+respuestas). Esas instrucciones son personales, así que **se mantienen fuera del repo**:
+este repositorio es público.
 
 Las herramientas del MCP funcionan igual dentro o fuera de un Proyecto — se configuran
 a nivel aplicación. El Proyecto solo agrega las instrucciones.

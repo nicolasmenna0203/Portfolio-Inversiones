@@ -5,29 +5,31 @@ import { equalsSeguro } from '@/lib/timingSafe';
 
 export const runtime = 'nodejs';
 
-// Destino fijo: dashboard de un solo usuario. Si en algún momento hay más de
-// un destinatario, esto pasa a ser una lista en variable de entorno.
-const DESTINATARIO = 'nicolasmenna10@gmail.com';
-
 /**
  * Dispara la alerta semanal de cobros (dividendos, renta, amortización,
  * balances) de los próximos 7 días.
  *
- * Pensada para invocarse desde un cron externo (Vercel Cron u otro), no desde
- * el browser — por eso no usa la cookie de sesión sino un secret propio
- * (CRON_SECRET) pasado como `Authorization: Bearer <secret>`.
+ * Pensada para invocarse desde un cron externo, no desde el browser — por eso
+ * no usa la cookie de sesión sino un secret propio (CRON_SECRET) pasado como
+ * `Authorization: Bearer <secret>`.
  *
- * Envío por Resend (RESEND_API_KEY). Falta programar el trigger: Vercel Cron
- * en plan Hobby corre como mínimo una vez al día (no soporta "cada lunes a
- * las 8am" con precisión horaria), así que la alternativa más simple es un
- * cron diario que solo actúe los lunes (chequeando el día de la semana acá
- * adentro), o un servicio externo de cron gratuito (cron-job.org, GitHub
- * Actions schedule) que sí permita el horario exacto.
+ * El trigger es el workflow `.github/workflows/alerta-semanal.yml` (lunes 11:00
+ * UTC). Se eligió GitHub Actions en vez de Vercel Cron por el horario exacto:
+ * ver docs/decisiones/0015-cron-semanal-en-github-actions.md
+ *
+ * Envío por Resend (RESEND_API_KEY) al destinatario de ALERTA_EMAIL.
  */
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
   if (!secret) {
     return NextResponse.json({ error: 'CRON_SECRET no configurado' }, { status: 500 });
+  }
+
+  // Destino único: dashboard de un solo usuario. Si alguna vez hay más de uno,
+  // esto pasa a ser una lista separada por comas.
+  const destinatario = process.env.ALERTA_EMAIL;
+  if (!destinatario) {
+    return NextResponse.json({ error: 'ALERTA_EMAIL no configurado' }, { status: 500 });
   }
 
   const auth = req.headers.get('authorization') ?? '';
@@ -41,7 +43,7 @@ export async function GET(req: NextRequest) {
     const alerta = await calcularAlertaSemanal(data, 7);
     const contenido = armarContenidoMail(alerta);
 
-    await enviarAlertaSemanal(DESTINATARIO, alerta);
+    await enviarAlertaSemanal(destinatario, alerta);
 
     return NextResponse.json({ ok: true, ...contenido, eventos: alerta.eventos.length });
   } catch (err) {

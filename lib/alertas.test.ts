@@ -244,7 +244,7 @@ describe('enviarAlertaSemanal', () => {
   it('llama a la API de Resend con el remitente sandbox por defecto', async () => {
     (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true });
 
-    await enviarAlertaSemanal('nicolasmenna10@gmail.com', alertaVacia);
+    await enviarAlertaSemanal('destino@example.com', alertaVacia);
 
     expect(fetch).toHaveBeenCalledWith(
       'https://api.resend.com/emails',
@@ -255,7 +255,7 @@ describe('enviarAlertaSemanal', () => {
     );
     const body = JSON.parse((fetch as ReturnType<typeof vi.fn>).mock.calls[0][1].body);
     expect(body.from).toBe('onboarding@resend.dev');
-    expect(body.to).toEqual(['nicolasmenna10@gmail.com']);
+    expect(body.to).toEqual(['destino@example.com']);
     expect(body.subject).toContain('sin cobros');
   });
 
@@ -263,7 +263,7 @@ describe('enviarAlertaSemanal', () => {
     process.env.RESEND_FROM = 'Portfolio <alertas@midominio.com>';
     (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true });
 
-    await enviarAlertaSemanal('nicolasmenna10@gmail.com', alertaVacia);
+    await enviarAlertaSemanal('destino@example.com', alertaVacia);
 
     const body = JSON.parse((fetch as ReturnType<typeof vi.fn>).mock.calls[0][1].body);
     expect(body.from).toBe('Portfolio <alertas@midominio.com>');

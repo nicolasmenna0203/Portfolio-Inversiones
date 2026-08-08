@@ -15,7 +15,7 @@ function formatFecha(ddmmyy: string): string {
 
 /**
  * Prefijos de trámite que anteceden al nombre del empleador (o lo reemplazan
- * cuando el banco no informa razón social) según el canal de pago. Santander
+ * cuando el banco no informa razón social) según el canal de pago. El banco
  * ya usó al menos tres formatos distintos para el mismo tipo de acreditación
  * ("Acreditacion de haberes", "Acreditacion haberes debin", "Pago haberes
  * interbanking externa") — se listan por canal en vez de intentar adivinar
@@ -31,7 +31,7 @@ const PREFIJOS_TRAMITE = [
  * Limpia el nombre del empleador extraído de la línea de acreditación de haberes.
  * El texto trae basura pegada: prefijos de trámite (ver PREFIJOS_TRAMITE), un
  * código de lote ("240130007"), a veces un dígito de sufijo pegado al final
- * ("renault argentina sa2"), y el CUIT del empleador. El nombre, cuando existe,
+ * ("empresa uno sa2"), y el CUIT del empleador. El nombre, cuando existe,
  * puede ir antes O después del CUIT según el canal de pago — no se asume una
  * posición fija, solo se remueve todo lo puramente numérico/ruido y se conserva
  * cualquier texto alfabético a los lados.
@@ -51,13 +51,13 @@ export function limpiarEmpleador(raw: string): string {
   // "cuit" suelto
   s = s.replace(/\bcuit\b/gi, ' ');
   // Código de lote/comprobante: 5+ dígitos, pegados a una palabra o sueltos
-  // (ej. "240130007renault...", o el comprobante fragmentado "02 30851 67").
+  // (ej. "240130007empresa...", o el comprobante fragmentado "02 30851 67").
   s = s.replace(/\d{5,}/g, ' ');
   // Grupos cortos de solo dígitos sueltos entre espacios (ej. "02", "67" del
   // comprobante fragmentado) — pero no números pegados a letras, esos se tratan
   // aparte para no comerse un nombre real que empiece con dígito.
   s = s.replace(/(?<=\s|^)\d{1,4}(?=\s|$)/g, ' ');
-  // Dígito de sufijo pegado a una palabra (ej. "argentina sa2" → "argentina sa")
+  // Dígito de sufijo pegado a una palabra (ej. "uno sa2" → "uno sa")
   s = s.replace(/([a-záéíóúñ])\d+\b/gi, '$1');
   s = s.replace(/\s+/g, ' ').trim();
   if (!s && cuitMatch) return `CUIT ${cuitMatch[1]}`;
@@ -79,23 +79,25 @@ export interface ParsedHaberes {
 }
 
 /**
- * Extrae acreditaciones de haberes de un resumen de cuenta bancario (formato
- * Santander "SuperCuenta"/"Infinity" verificado). Busca líneas dentro de
- * "Movimientos en pesos" y "Movimientos en dólares" que contienen la palabra
- * "haberes" en el concepto del movimiento — sin fijar el texto exacto del
- * concepto, porque Santander ya usó al menos tres formatos distintos para el
- * mismo tipo de acreditación:
+ * Extrae acreditaciones de haberes de un resumen de cuenta bancario. Busca
+ * líneas dentro de "Movimientos en pesos" y "Movimientos en dólares" que
+ * contienen la palabra "haberes" en el concepto del movimiento — sin fijar el
+ * texto exacto del concepto, porque el banco ya usó al menos tres formatos
+ * distintos para el mismo tipo de acreditación:
+ *
+ * Los ejemplos son sintéticos: mismo formato que los resúmenes reales, con
+ * razones sociales y CUIT ficticios.
  *
  * Transferencia directa (el nombre va DESPUÉS del CUIT, pegado a un código de lote):
- * "31/01/24 67332701 Acreditacion de haberes 30503317814 240130007renault argentina sa $ 276.000,00 $ 276.000,67"
+ * "31/01/24 67332701 Acreditacion de haberes 30111111111 240130007empresa uno sa $ 276.000,00 $ 276.000,67"
  *
  * DEBIN (sin razón social, solo un ID de transacción y el CUIT —
  * limpiarEmpleador() cae a "CUIT <número>"):
- * "08/07/26 89653638 Acreditacion haberes debin Id debin d4ro172vp1rr8p802kj3qe cuit 30712249338 $ 1.967.232,55 $ 1.967.233,37"
+ * "08/07/26 89653638 Acreditacion haberes debin Id debin a1b2c3d4e5f6g7h8i9j0k1 cuit 30222222222 $ 1.900.000,00 $ 1.900.000,40"
  *
  * Interbanking externa (el nombre va ANTES del CUIT, seguido de un comprobante
  * bancario fragmentado con espacios — "02 30851 67"):
- * "05/12/25 3085167 Pago haberes interbanking externa Voip experts srl 30712249338 02 30851 67 $ 1.576.062,38 $ 1.576.508,72"
+ * "05/12/25 3085167 Pago haberes interbanking externa Empresa dos srl 30222222222 02 30851 67 $ 1.500.000,00 $ 1.500.446,34"
  *
  * En los tres casos: FECHA | COMPROBANTE | concepto con "haberes" | [nombre]+[CUIT]+ruido | $ MONTO | $ SALDO
  */

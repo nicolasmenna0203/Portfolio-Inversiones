@@ -1,64 +1,76 @@
-# Investment Dashboard
+# Portfolio de Inversiones
 
-Dashboard de finanzas personales conectado en tiempo real a Google Sheets. Permite visualizar la evolución de la cartera, distribución de activos, rendimiento histórico y cargar nuevas tenencias desde el PDF mensual de Cocos Capital.
+Dashboard de seguimiento de una cartera de inversiones (CEDEARs, ETFs, bonos argentinos y FCI), conectado a Google Sheets como fuente de verdad. Incluye un servidor MCP que expone la cartera a Claude para análisis conversacional.
 
 ## Stack
 
-- **Next.js 15** (App Router) + **TypeScript**
+- **Next.js 15** (App Router) + **React 19** + **TypeScript**
 - **Recharts** — gráficos interactivos
 - **Google Sheets API v4** — fuente de datos vía Service Account
 - **unpdf** — extracción de texto de PDFs en entornos serverless
-- **Tailwind CSS** — estilos base
+- **Tailwind CSS 4** — estilos base
+- **Vitest** — tests unitarios
+- **@modelcontextprotocol/sdk** — servidor MCP
 
 ## Funcionalidades
 
-- KPIs: total de cartera, aportes acumulados, rendimiento neto y TIR anual
-- Evolución mensual de cartera vs. aportes acumulados
-- Evolución apilada por dimensión (tipo de activo, riesgo, moneda, renta, geografía)
-- Treemap interactivo de tenencias con filtros cruzados
-- Slider de período para explorar snapshots mensuales
-- Carga de tenencias desde PDF de Cocos Capital (parsing local, sin APIs externas)
-- Tema claro / oscuro
-- Botón para ocultar valores sensibles
+Nueve tabs, todas dentro de una sola página:
 
-## Estructura
+| Tab | Qué muestra |
+|---|---|
+| **Resumen** | KPIs (total, aportes, rendimiento neto, TIR anual), evolución mensual, treemap con filtros cruzados |
+| **Tenencias** | Detalle de posiciones del mes seleccionado |
+| **Informe** | Informe mensual con variaciones |
+| **Proyecciones** | Proyección de la cartera a futuro |
+| **Benchmarks** | Cartera vs S&P 500, inflación, MEP, BTC y oro, en base 100 |
+| **Noticias** | Noticias por ticker (Yahoo) y macro (RSS) |
+| **Calendario** | Cobros esperados: dividendos, renta y amortización de bonos, balances |
+| **Performance** | Renta fija (TIR, duration, paridad, sensibilidad), renta variable (fundamentals), FCI y simulador de carry trade |
+| **Ingresos** | Haberes cargados y su evolución |
+
+Transversal: tema claro/oscuro, toggle USD/ARS, botón para ocultar valores, slider de mes.
+
+Además: carga de tenencias, movimientos y haberes desde PDF; alerta semanal de cobros por mail.
+
+## Arquitectura
+
+Por capas, para que no se desactualice con cada archivo nuevo:
 
 ```
 app/
-  page.tsx                     — Server Component, fetcha datos (revalidate 60s)
-  layout.tsx                   — metadata + tema base
-  globals.css                  — CSS variables del tema
-  api/upload-tenencias/
-    route.ts                   — GET meses cargados / POST procesar PDF → Sheets
-components/
-  Dashboard.tsx                — Client Component principal (tabs, filtros, estado)
-  KPICard.tsx                  — Card de KPI
-  EvolucionChart.tsx           — AreaChart cartera vs aportes
-  EvolucionTipoChart.tsx       — AreaChart apilado por dimensión + toggle USD/%
-  TreemapChart.tsx             — Treemap de tenencias con drill-down
-  MonthSlider.tsx              — Slider custom para navegar entre meses
-  UploadTenencias.tsx          — UI para subir PDF mensual de Cocos
-lib/
-  sheets.ts                    — fetchDashboardData() con googleapis
-  parser.ts                    — parseArgNum, parseFechaDia, formatMesLabel, toMesKey, fmtUSD, fmtPct
-  finance.ts                   — xirr() Newton-Raphson para TIR anual
-  constants.ts                 — Paletas y labels por dimensión
-types/
-  index.ts                     — Tipos TypeScript compartidos
-legacy/streamlit/              — Versión anterior en Streamlit (archivada)
+  page.tsx           Server Component: fetchDashboardData() → <Dashboard>
+  login/             login (el resto del sitio está detrás de middleware)
+  api/               15 route handlers: upload-*, performance*, fci,
+                     calendario-financiero, benchmarks, fx, noticias,
+                     ingresos, alertas/semanal, auth/*
+components/          18 componentes cliente; Dashboard.tsx orquesta los tabs
+lib/                 lógica de negocio y acceso a datos (+ tests .test.ts)
+  sheets.ts          fetchDashboardData(): las 4 hojas → modelo del dashboard
+  precios.ts         precios spot y MEP
+  bondMetrics.ts     TIR/duration/paridad de bonos
+  agentTools.ts      las 11 tools del MCP + SYSTEM_PROMPT
+  use*.ts            hooks de datos del cliente
+mcp/server.ts        servidor MCP por stdio (delega en lib/agentTools.ts)
+middleware.ts        auth por cookie de sesión firmada (Edge runtime)
+scripts/             utilidades puntuales (backfill de ARS)
+types/index.ts       tipos compartidos
 ```
+
+**Por qué el código es así:** las decisiones no obvias (cálculos propios de TIR, tratamiento del MEP, límites de cada fuente de datos) están documentadas en **[docs/decisiones/](docs/decisiones/README.md)**. Antes de cambiar una constante financiera o una fuente, buscá el archivo en la columna "Código" de ese índice.
+
+El servidor MCP tiene su propia doc: **[README-MCP.md](README-MCP.md)**.
 
 ## Setup local
 
-### 1. Clonar e instalar dependencias
+### 1. Clonar e instalar
 
 ```bash
-git clone https://github.com/nicolasmenna0203/Dashboard-Finanzas.git
-cd Dashboard-Finanzas
+git clone https://github.com/nicolasmenna0203/Portfolio-Inversiones.git
+cd Portfolio-Inversiones
 npm install
 ```
 
-### 2. Configurar variables de entorno
+### 2. Variables de entorno
 
 ```bash
 cp .env.example .env
@@ -66,27 +78,33 @@ cp .env.example .env
 
 | Variable | Descripción |
 |---|---|
-| `SPREADSHEET_ID` | ID del Google Sheet (en la URL de Sheets) |
-| `GOOGLE_SERVICE_ACCOUNT_JSON` | JSON completo de la Service Account (una sola línea) |
+| `SPREADSHEET_ID` | ID del Google Sheet (está en la URL de Sheets) |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | JSON completo de la Service Account, en una línea |
+| `BASIC_AUTH_USER` / `BASIC_AUTH_PASS` | credenciales de login |
+| `SESSION_SECRET` | string aleatorio para firmar la cookie de sesión |
+| `CRON_SECRET` | secreto del cron que dispara la alerta semanal |
+| `RESEND_API_KEY` | envío del mail de alerta |
+| `ALERTA_EMAIL` | destinatario del mail de alerta |
 
 ### 3. Compartir el Sheet con la Service Account
 
 En Google Sheets → Compartir → pegar el `client_email` del JSON → rol **Editor** (necesario para cargar tenencias).
 
-### 4. Correr en desarrollo
+### 4. Correr
 
 ```bash
-npm run dev
+npm run dev     # dashboard en http://localhost:3000
+npm test        # tests (vitest)
+npm run mcp     # servidor MCP por stdio
+npm run build   # build de producción
 ```
-
-Abre [http://localhost:3000](http://localhost:3000).
 
 ## Deploy en Vercel
 
 1. Conectar el repositorio en [vercel.com](https://vercel.com)
-2. Agregar en **Settings → Environment Variables**:
-   - `SPREADSHEET_ID`
-   - `GOOGLE_SERVICE_ACCOUNT_JSON` (JSON minificado en una línea)
+2. Agregar todas las variables de la tabla anterior en **Settings → Environment Variables**
+
+La alerta semanal se dispara desde GitHub Actions (`.github/workflows/alerta-semanal.yml`), no desde Vercel Cron — requiere el secret `CRON_SECRET` y la variable `DASHBOARD_URL` en el repo de GitHub. El motivo de esa elección está en [docs/decisiones/](docs/decisiones/README.md).
 
 ## Estructura del Google Sheet
 
@@ -95,21 +113,27 @@ Abre [http://localhost:3000](http://localhost:3000).
 | `Activos` | TICKER, BROKER, TIPO, RIESGO, SECTOR GEO, RENTA, MONEDA | Catálogo de instrumentos |
 | `Movimientos` | Fecha, Monto (USD), Ingreso/Salida | Flujos de caja — `ingreso` suma al acumulado, `salida` resta |
 | `Tenencias` | Ticker, Tenencia (ARS), Tenencia (USD), Fecha | Snapshots mensuales de posiciones |
+| `Ingresos` | Fecha, Empleador, Monto (ARS), Monto (USD) | Haberes acreditados |
 
 ### Cálculo de métricas
 
-Todo se deriva en código a partir de las 3 hojas, sin hoja Resumen:
+Todo se deriva en código a partir de las hojas, sin hoja Resumen:
 
 - **Total cartera**: suma de `Tenencia (USD)` de todos los activos del mes
 - **Aportes acumulados**: suma acumulada del neto de movimientos hasta ese mes
 - **Rendimiento neto**: `total_cartera − aportes_acumulados`
-- **TIR anual**: XIRR con Newton-Raphson — movimientos como flujos de caja + valor actual de cartera como flujo terminal
+- **TIR anual**: XIRR con Newton-Raphson — movimientos como flujos de caja, valor actual de la cartera como flujo terminal
 
-## Carga de tenencias
+Las valuaciones en ARS usan el dólar MEP **de cada mes**, no un MEP único; los aportes usan el MEP del día exacto del movimiento.
 
-En la tab **Cargar Mes**, arrastrar o seleccionar el PDF mensual de Cocos Capital. El sistema:
+## Carga de datos
+
+En la tab de carga, arrastrar el PDF mensual del broker. El sistema:
+
 1. Extrae el texto del PDF localmente (sin APIs externas)
-2. Detecta automáticamente el mes y el tipo de cambio MEP
-3. Parsea todos los instrumentos de la última sección de cierre
-4. Sube las filas a Tenencias con fecha = último día del mes
+2. Detecta el mes y el tipo de cambio MEP
+3. Parsea los instrumentos de la última sección de cierre
+4. Sube las filas a `Tenencias` con fecha = último día del mes
 5. Previene cargar un mes ya existente
+
+El mismo flujo aplica a movimientos y a recibos de haberes, con sus parsers propios (`lib/parser.ts`, `lib/haberes.ts`).

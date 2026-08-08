@@ -44,7 +44,7 @@ function normalizarFecha(f: string): string | null {
 /**
  * Clave de dedupe de una fila: fecha normalizada + montos, SIN el empleador.
  * El nombre del empleador no es confiable para comparar: el usuario puede
- * estandarizarlo al confirmar (ej. "CUIT 30712249338" → "VOIP EXPERTS SRL"),
+ * estandarizarlo al confirmar (ej. "CUIT 30222222222" → "EMPRESA DOS SRL"),
  * y el parser vuelve a extraer el nombre crudo del PDF en la próxima carga,
  * que ya no coincide con el guardado. Fecha exacta + monto exacto identifican
  * el pago igual de bien y no cambian aunque el nombre se edite después.
