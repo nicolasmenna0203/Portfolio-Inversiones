@@ -208,7 +208,7 @@ export interface PerformanceResponse {
   generatedAt: number;
 }
 
-// ── FCI de Cocos Capital (VCP, rendimientos), vía planilla diaria de CAFCI ───
+// ── FCI del broker (VCP, rendimientos), vía planilla diaria de CAFCI ───
 
 export interface FciPerformance {
   ticker: string;

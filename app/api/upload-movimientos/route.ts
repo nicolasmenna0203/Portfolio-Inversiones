@@ -94,7 +94,7 @@ function parseMovimientosText(fullText: string): ParsedMovimientos {
     rows.push({
       fecha,
       montoUSD: usdRaw,
-      // Orden De Pago   = Cocos te paga = retiro = entrada a tu bolsillo → Salida (TIR: +)
+      // Orden De Pago   = el broker te paga = retiro = entrada a tu bolsillo → Salida (TIR: +)
       // Recibo De Cobro = vos depositás = aporte = salida de tu bolsillo → Ingreso (TIR: -)
       tipo: concepto.includes('recibo') ? 'Ingreso' : 'Salida',
     });

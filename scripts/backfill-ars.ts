@@ -3,6 +3,9 @@
  * del Google Sheet, usando el dólar MEP del día exacto de cada fila (fuente:
  * ArgentinaDatos, con fallback al día hábil más cercano hacia atrás — lib/benchmarks.ts).
  *
+ * Por qué el MEP del día exacto y no uno único:
+ * docs/decisiones/0007-mep-mensual-no-mep-unico.md
+ *
  * - Tenencias!B (Tenencia (ARS)): completa solo las filas vacías/0, sin tocar
  *   las que ya traían un valor real cargado (ej. activos en pesos).
  * - Movimientos: agrega la columna D "Monto (ARS)" si no existe, y la completa

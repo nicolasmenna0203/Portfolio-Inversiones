@@ -1,5 +1,7 @@
 import type { NextConfig } from 'next';
 
+// Decisión y alternativas descartadas: docs/decisiones/0010-webpack-cache-en-memoria-por-onedrive.md
+//
 // NOTA sobre OneDrive: el proyecto vive dentro de OneDrive, que sincroniza y bloquea
 // archivos de .next mientras Next los escribe, corrompiendo el build en dev (ENOENT
 // al renombrar manifests y .pack.gz, "Cannot find module './NNN.js'").

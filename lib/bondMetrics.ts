@@ -1,5 +1,7 @@
 import { MAPEO_BONOS_ARG } from './bonosArg';
 
+// Decisión y alternativas descartadas: docs/decisiones/0004-grupos-de-bono-y-tir-no-comparables.md
+//
 // ── Métricas de renta fija (TIR, duration, paridad) desde bonistas.com ─────
 //
 // bonistas.com embebe un array "bondData" (Next.js __NEXT_DATA__) en varias

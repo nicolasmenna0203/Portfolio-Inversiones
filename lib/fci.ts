@@ -1,7 +1,7 @@
 import type { FciPerformance, FciResponse } from '@/types';
 import { fetchFciMetrics } from './fciCocos';
 
-/** Junta las métricas de los FCI de Cocos (VCP, rendimientos) con las tenencias actuales de la cartera. */
+/** Junta las métricas de los FCI del broker (VCP, rendimientos) con las tenencias actuales de la cartera. */
 export async function fetchFciPerformance(
   tenencias: Record<string, number> = {},
 ): Promise<FciResponse> {

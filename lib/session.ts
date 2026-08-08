@@ -1,6 +1,9 @@
 /**
  * Token de sesión firmado (HMAC-SHA256), no el secreto en texto plano.
  *
+ * Decisión y alternativas descartadas:
+ * docs/decisiones/0014-hmac-webcrypto-por-edge-runtime.md
+ *
  * Antes la cookie de sesión ERA el valor de SESSION_SECRET. Si esa cookie se
  * filtraba (log, extensión de browser, backup), se filtraba el secreto del
  * servidor entero y no había forma de invalidar la sesión sin rotarlo.

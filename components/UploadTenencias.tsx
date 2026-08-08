@@ -930,7 +930,7 @@ export default function UploadTenencias() {
       {/* Tenencias */}
       <Uploader
         title="Tenencias del mes"
-        subtitle="Resumen de Cuenta Cocos — posición al cierre"
+        subtitle="Resumen de cuenta del broker — posición al cierre"
         hint="PDF de posición mensual: contiene la sección &quot;POSICION AL CIERRE DEL&quot; con todos tus instrumentos."
         parseEndpoint="/api/upload-tenencias?action=parse"
         confirmEndpoint="/api/upload-tenencias?action=confirm"
@@ -947,8 +947,8 @@ export default function UploadTenencias() {
       {/* Movimientos */}
       <Uploader
         title="Movimientos del mes"
-        subtitle="Resumen de Cuenta Cocos — ingresos y retiros"
-        hint="El mismo PDF mensual de Cocos: también contiene la sección &quot;INCREMENTOS/DECREMENTOS DE LA INVERSION&quot; con depósitos y retiros."
+        subtitle="Resumen de cuenta del broker — ingresos y retiros"
+        hint="El mismo PDF mensual del broker: también contiene la sección &quot;INCREMENTOS/DECREMENTOS DE LA INVERSION&quot; con depósitos y retiros."
         parseEndpoint="/api/upload-movimientos?action=parse"
         confirmEndpoint="/api/upload-movimientos?action=confirm"
         buildConfirmBody={(p) => ({

@@ -1,6 +1,9 @@
 import type { EventoCalendario } from '@/types';
 import { getCrumb, UA } from './yahooCrumb';
 
+// Por qué quoteSummary necesita cookie+crumb:
+// docs/decisiones/0008-yahoo-cookie-crumb-y-yield-desde-chart.md
+//
 // Reemplazo de Finnhub para balances: Yahoo Finance calendarEvents da la próxima
 // fecha de earnings por ticker + estimación de EPS. Sin API key; requiere una
 // cookie de sesión + "crumb" que Yahoo exige para su endpoint quoteSummary

@@ -1,6 +1,8 @@
 import { inflateRawSync } from 'zlib';
 
-// ── FCI de Cocos Capital, vía la Planilla Diaria pública de CAFCI ──────────
+// Decisión y alternativas descartadas: docs/decisiones/0005-parsear-cafci-con-zlib-nativo.md
+//
+// ── FCI del broker, vía la Planilla Diaria pública de CAFCI ────────────────
 //
 // CAFCI (Cámara Argentina de Fondos Comunes de Inversión) publica sin auth
 // un .xlsx con el universo completo de FCI del país, actualizado a diario:

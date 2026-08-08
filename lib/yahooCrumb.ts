@@ -1,3 +1,5 @@
+// Decisión y alternativas descartadas: docs/decisiones/0008-yahoo-cookie-crumb-y-yield-desde-chart.md
+//
 // Cookie + "crumb" que exigen los endpoints quoteSummary de Yahoo Finance.
 // Compartido por lib/yahooEarnings.ts y lib/yahooFundamentals.ts para no
 // reimplementar el mecanismo dos veces.

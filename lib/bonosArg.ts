@@ -1,6 +1,6 @@
 import type { EventoCalendario } from '@/types';
 
-// ── Mapeo Cocos/BYMA → símbolo de bonistas.com ──────────────────────────────
+// ── Mapeo cartera/BYMA → símbolo de bonistas.com ──────────────────────────────
 // Solo se incluyen tickers con match EXACTO verificado contra el dataset de
 // bonistas (símbolo idéntico o especie "D"/cable). Meter un ticker mal mapeado
 // mostraría el flujo de OTRO bono, así que se prefiere omitir antes que adivinar.

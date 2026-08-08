@@ -69,7 +69,7 @@ export default function FciSection({ tenencias }: Props) {
   if (loading) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1 }}>
-        <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)' }}>Cargando FCI de Cocos…</p>
+        <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)' }}>Cargando FCI del broker…</p>
       </div>
     );
   }
@@ -90,7 +90,7 @@ export default function FciSection({ tenencias }: Props) {
 
       <div className="kpi-grid">
         <KPICard
-          label="En Cartera (FCI Cocos)"
+          label="En Cartera (FCI)"
           value={fmtUsd(totalEnCartera)}
           sub={`${fondos.filter((f) => f.tenenciaUsd).length} de ${fondos.length} fondos con posición`}
           accentColor={COLOR_FCI}

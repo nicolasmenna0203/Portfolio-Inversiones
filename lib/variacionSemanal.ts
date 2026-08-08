@@ -1,3 +1,5 @@
+// Decisión y alternativas descartadas: docs/decisiones/0003-variacion-semanal-por-moneda-nativa.md
+//
 // Variación de precio de los últimos 7 días de cada posición de la cartera,
 // en USD y en ARS, agrupada por tipo de activo — el insumo del bloque de
 // mercado del mail semanal.
@@ -254,7 +256,7 @@ export async function calcularVariacionSemanal(
         };
       }
 
-      // ── FCI Cocos: la planilla CAFCI no publica rendimiento a 7 días ──────
+      // ── FCI del broker: la planilla CAFCI no publica rendimiento a 7 días ──────
       if (base.tipo === 'FCI') {
         const m = fciMetrics.get(ticker);
         if (!m) return { ...base, precioUsd: null, precioUsdPrevio: null, precioArs: null, precioArsPrevio: null, variacionUsd: null, variacionArs: null, nota: 'sin dato CAFCI' };

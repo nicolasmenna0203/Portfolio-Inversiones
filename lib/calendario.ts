@@ -1,3 +1,11 @@
+// Calendario de cobros: dividendos, renta y amortización de bonos, balances.
+//
+// Dos decisiones que definen los montos que se muestran acá:
+// - el yield se deriva del endpoint chart, sin request extra ni crumb:
+//   docs/decisiones/0008-yahoo-cookie-crumb-y-yield-desde-chart.md
+// - los dividendos van netos, y qué excluye ese neto:
+//   docs/decisiones/0002-retenciones-excluir-comision-depositario.md
+
 import type { EventoCalendario, CalendarioResponse, YieldTicker } from '@/types';
 import { fetchBonosArg } from './bonosArg';
 import { fetchDividendosFuturos } from './dividendosFuturos';

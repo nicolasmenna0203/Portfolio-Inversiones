@@ -1,6 +1,8 @@
 import type { GrupoBono } from '@/types';
 import type { BondMetric } from './bondMetrics';
 
+// Decisión y alternativas descartadas: docs/decisiones/0001-tir-duration-propias-bonos-provinciales.md
+//
 // ── Bonos sin cobertura en bonistas.com: TIR y duration calculadas acá ───────
 //
 // bonistas.com —la fuente de toda la curva de renta fija— no trackea deuda

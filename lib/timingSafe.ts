@@ -1,6 +1,10 @@
 /**
  * Comparación de strings en tiempo constante.
  *
+ * Contexto de por qué existe (auth de sesión y del cron):
+ * docs/decisiones/0014-hmac-webcrypto-por-edge-runtime.md
+ * docs/decisiones/0015-cron-semanal-en-github-actions.md
+ *
  * `a === b` corta en el primer byte distinto, así que el tiempo de respuesta
  * filtra cuántos caracteres del prefijo son correctos. Con suficientes intentos
  * eso permite reconstruir la contraseña carácter por carácter.

@@ -1,5 +1,8 @@
 name: Alerta semanal de cobros
 
+# Por qué GitHub Actions y no Vercel Cron:
+# docs/decisiones/0015-cron-semanal-en-github-actions.md
+
 on:
   schedule:
     # Lunes 11:00 UTC = 08:00 ART (Argentina no tiene horario de verano).

@@ -8,7 +8,12 @@ const SHOCKS = [1, 2, 3, 5, 10];
 
 /**
  * Aproximación de primer orden de la sensibilidad de la TIR a un shock de
- * precio, vía duration modificada: ΔTIR ≈ Δprecio% / duration. Ignora
+ * precio, vía duration modificada: ΔTIR ≈ Δprecio% / duration.
+ *
+ * Decisión y alternativas descartadas:
+ * docs/decisiones/0006-sensibilidad-sin-convexidad.md
+ *
+ * Ignora
  * convexidad (error creciente en shocks grandes o duration muy corta), pero
  * es la fórmula estándar de renta fija y, a diferencia de los campos
  * tir_up/tir_down de bonistas.com, su cálculo es verificable.

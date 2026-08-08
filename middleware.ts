@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verificarToken } from '@/lib/session';
 
+// Corre en el Edge runtime: sin node:crypto. Por eso la sesión se firma con
+// WebCrypto → docs/decisiones/0014-hmac-webcrypto-por-edge-runtime.md
+//
 // /api/alertas/semanal es pública acá porque la llama un cron externo sin
 // cookie de sesión — se autentica sola con CRON_SECRET (ver su route.ts).
 const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/alertas/semanal'];

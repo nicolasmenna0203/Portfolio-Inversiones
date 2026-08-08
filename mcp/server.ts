@@ -17,6 +17,8 @@ import { fileURLToPath } from 'node:url';
 
 // Cargar .env antes de importar nada que lea process.env en el módulo raíz.
 //
+// Decisión y alternativas descartadas: docs/decisiones/0009-dotenv-quiet-en-stdio-mcp.md
+//
 // `quiet: true` es obligatorio, no cosmético: sin él dotenv escribe su banner
 // ("◇ injected env (N) from .env") a stdout, que acá es el canal exclusivo del
 // protocolo MCP. El cliente intenta parsear ese texto como JSON-RPC y falla con

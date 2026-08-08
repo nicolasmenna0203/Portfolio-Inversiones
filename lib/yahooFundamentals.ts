@@ -1,5 +1,8 @@
 import { getCrumb, UA } from './yahooCrumb';
 
+// Por qué quoteSummary necesita cookie+crumb:
+// docs/decisiones/0008-yahoo-cookie-crumb-y-yield-desde-chart.md
+//
 // Fundamentals de renta variable (P/E, market cap, rango 52 semanas, variación
 // del día) vía quoteSummary, mismo mecanismo cookie+crumb que ya usa
 // lib/yahooEarnings.ts para earnings — validado en vivo que summaryDetail,

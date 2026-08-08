@@ -1,3 +1,10 @@
+// Series de benchmarks (S&P 500, oro, MEP, inflación, BTC) rebasadas a índice 100.
+//
+// La serie de la cartera que se compara contra estas INCLUYE aportes: no es
+// rendimiento puro. Ver docs/decisiones/0013-benchmarks-incluyen-aportes.md
+// El MEP histórico sale de acá (fetchMepPorFecha), con fallback al día hábil
+// anterior: docs/decisiones/0007-mep-mensual-no-mep-unico.md
+
 import { toMesKey } from './parser';
 import type { BenchmarkId, BenchmarkPoint, BenchmarkSeries } from '@/types';
 

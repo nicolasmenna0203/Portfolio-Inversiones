@@ -1,3 +1,8 @@
+// Lectura del Google Sheet (fuente de verdad) y armado del modelo del dashboard.
+//
+// Decisión sobre la valuación en pesos (MEP por fecha, no un MEP único):
+// docs/decisiones/0007-mep-mensual-no-mep-unico.md
+
 import { google } from 'googleapis';
 import {
   parseArgNum,
@@ -101,7 +106,7 @@ export async function fetchDashboardData(): Promise<DashboardData> {
 
   // ── Tenencias ──────────────────────────────────────────────────────────────
   // Tenencia (ARS) ya viene completa en el Sheet para toda fila con tenencia_usd > 0
-  // (las cargas vía PDF de Cocos la traen calculada; el histórico legacy se completó
+  // (las cargas vía PDF del broker la traen calculada; el histórico legacy se completó
   // una vez con scripts/backfill-ars.ts usando el MEP del día exacto de cada fila).
   const tenencias: TenenciaRow[] = rawTenencias
     .map((r) => {

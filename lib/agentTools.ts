@@ -2,14 +2,23 @@
  * Capa de herramientas compartida para asistentes de IA.
  *
  * Define las funciones que un modelo puede invocar sobre los datos de la
- * cartera, junto con sus schemas JSON. La usan dos consumidores distintos:
+ * cartera, junto con sus schemas JSON.
  *
- *   - `mcp/server.ts`      → MCP server para Claude Desktop / Claude Code
- *   - `app/api/chat/route.ts` → chatbot del dashboard (tool calling)
+ * Único consumidor hoy: `mcp/server.ts` (MCP server para Claude Desktop /
+ * Claude Code). `components/ChatBot.tsx` NO usa esta capa — no hace tool
+ * calling ni llama a ninguna API route; si alguna vez se le agrega, este es
+ * el módulo del que tiene que colgar.
  *
  * Cada herramienta devuelve datos crudos (números, no strings formateados):
  * el modelo redacta la prosa, el código provee los hechos. Formatear acá
  * obligaría al modelo a re-parsear texto para comparar o sumar.
+ *
+ * El SYSTEM_PROMPT del final propaga al modelo las reglas de interpretación
+ * que, ignoradas, producen respuestas equivocadas:
+ *   - dividendos netos y qué excluye ese neto → docs/decisiones/0002-*.md
+ *   - TIR no comparables entre grupos de tasa → docs/decisiones/0004-*.md
+ *   - el MEP de cada mes, no un MEP único     → docs/decisiones/0007-*.md
+ *   - la serie de la cartera incluye aportes  → docs/decisiones/0013-*.md
  */
 
 import { fetchDashboardData } from './sheets';
@@ -435,7 +444,7 @@ async function rentaFijaFci() {
   const lista = enCartera.length > 0 ? enCartera : res.fondos;
 
   return {
-    fuente: 'Planilla pública diaria de CAFCI (fondos de Cocos Capital).',
+    fuente: 'Planilla pública diaria de CAFCI (fondos del broker).',
     solo_en_cartera: enCartera.length > 0,
     fondos: lista.map((f) => ({
       ticker: f.ticker,
@@ -680,7 +689,7 @@ export const AGENT_TOOLS: AgentTool[] = [
   {
     name: 'renta_fija_fci',
     description:
-      'Rendimientos de los fondos comunes de inversión de Cocos Capital: VCP, variación diaria, y rendimiento del mes, del año y de 12 meses. Prioriza los fondos que están en cartera. Usar para preguntas sobre cómo rinden los FCI.',
+      'Rendimientos de los fondos comunes de inversión del broker: VCP, variación diaria, y rendimiento del mes, del año y de 12 meses. Prioriza los fondos que están en cartera. Usar para preguntas sobre cómo rinden los FCI.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     run: () => rentaFijaFci(),
   },

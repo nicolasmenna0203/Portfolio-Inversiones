@@ -2,6 +2,9 @@
  * XIRR — Tasa Interna de Retorno para flujos de caja con fechas irregulares.
  * Implementación por método de Newton-Raphson.
  *
+ * Decisión y alternativas descartadas:
+ * docs/decisiones/0011-xirr-newton-raphson-multi-semilla.md
+ *
  * Convención de signos (perspectiva del inversor):
  *  - Aportes (ingreso al portfolio) → negativos (plata que salió del bolsillo)
  *  - Retiros / valor terminal       → positivos

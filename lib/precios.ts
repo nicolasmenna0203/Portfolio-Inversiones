@@ -2,6 +2,9 @@ import { MAPEO_BONOS_ARG } from './bonosArg';
 
 // Precios de mercado para estimar cuántas unidades/nominales tenés a partir del
 // valor de tu posición (el Sheet guarda valor en USD, no cantidad).
+//
+// Decisión sobre el dólar MEP (uno por fecha, no un MEP único):
+// docs/decisiones/0007-mep-mensual-no-mep-unico.md
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0 Safari/537.36';
 

@@ -39,7 +39,7 @@ function parseArgNum(s: string): number {
   return parseFloat(s.replace(/\./g, '').replace(',', '.').replace(/[^0-9.\-]/g, ''));
 }
 
-// ── Parser PDF Cocos ──────────────────────────────────────────────────────────
+// ── Parser PDF del broker ──────────────────────────────────────────────────────────
 
 interface ParsedRow {
   ticker: string;

@@ -9,7 +9,7 @@ interface UseFciResult {
   error: string | null;
 }
 
-/** Trae VCP y rendimientos de los FCI de Cocos, cruzado con la tenencia actual. */
+/** Trae VCP y rendimientos de los FCI del broker, cruzado con la tenencia actual. */
 export function useFci(tenencias: Record<string, number>): UseFciResult {
   const [data, setData] = useState<FciResponse | null>(null);
   const [loading, setLoading] = useState(true);

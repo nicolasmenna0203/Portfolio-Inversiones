@@ -105,7 +105,7 @@ export function parseHaberesText(fullText: string): ParsedHaberes {
   const rows: HaberRow[] = [];
 
   // Cada línea de movimiento arranca con "DD/MM/YY " — partimos el texto en
-  // bloques por esa marca, igual que el parser de Movimientos de Cocos.
+  // bloques por esa marca, igual que el parser de Movimientos del broker.
   const dateSplitRegex = /(?=\d{2}\/\d{2}\/\d{2}\s)/g;
   const chunks = fullText.split(dateSplitRegex).filter((c) => /^\d{2}\/\d{2}\/\d{2}\s/.test(c));
 

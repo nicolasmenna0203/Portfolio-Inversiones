@@ -1,3 +1,5 @@
+// Decisión y alternativas descartadas: docs/decisiones/0002-retenciones-excluir-comision-depositario.md
+//
 // Retenciones sobre el cobro de dividendos, para estimar lo que realmente se
 // acredita en la cuenta comitente en vez del monto bruto que declara el emisor.
 
