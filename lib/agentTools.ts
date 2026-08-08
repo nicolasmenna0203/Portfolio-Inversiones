@@ -30,6 +30,7 @@ import { fetchFciPerformance } from './fci';
 import { fetchPerformanceVariable } from './performanceVariable';
 import { fetchBenchmarks } from './benchmarks';
 import { FACTOR_NETO_DIVIDENDO } from './retenciones';
+import { leerPerfil, registrarDecision } from './perfilInversor';
 import type { DashboardData, TenenciaActual } from '@/types';
 
 // ── Cache de proceso ──────────────────────────────────────────────────────────
@@ -707,6 +708,44 @@ export const AGENT_TOOLS: AgentTool[] = [
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     run: () => compararBenchmarks(),
   },
+  {
+    name: 'perfil_inversor',
+    description:
+      'Devuelve el perfil del inversor: objetivo, horizonte, criterios de venta, postura sobre la exposición argentina, cómo reacciona ante caídas, y el log de decisiones tomadas. Es el marco para interpretar los datos, no datos de la cartera. Llamala SIEMPRE antes de dar una lectura interpretativa (si conviene rebalancear, si está muy concentrado, si un bono está caro): sin esto el análisis es genérico y puede contradecir criterios que el usuario ya definió.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    run: () => leerPerfil(),
+  },
+  {
+    name: 'registrar_aprendizaje',
+    description:
+      'Agrega una decisión al log del perfil del inversor, de forma permanente. Usar SOLO cuando el usuario expresa un criterio de decisión duradero o toma una decisión concreta sobre su cartera con su razonamiento (ej. "no vendo aunque suba, salvo que se rompa la tesis", "voy a bajar ARG al 30% antes de fin de año"). NO usar para observaciones de la conversación, preguntas que hizo, estados de ánimo sobre el mercado, ni conclusiones tuyas: eso llena el archivo de ruido y hace ilegible lo que importa. Ante la duda, no registres. Si no podés completar "queLaInvalidaria" con una condición observable, no es una decisión registrable. Después de registrar, mostrale al usuario qué se guardó.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        decision: {
+          type: 'string',
+          description: 'La decisión o criterio, en una línea y en las palabras del usuario.',
+        },
+        razonamiento: {
+          type: 'string',
+          description: 'Por qué la tomó. El motivo que dio, no tu interpretación.',
+        },
+        queLaInvalidaria: {
+          type: 'string',
+          description:
+            'Condición observable que haría revisar esta decisión. Si no se puede articular, no registres.',
+        },
+      },
+      required: ['decision', 'razonamiento', 'queLaInvalidaria'],
+      additionalProperties: false,
+    },
+    run: (input) =>
+      registrarDecision({
+        decision: optStr(input, 'decision') ?? '',
+        razonamiento: optStr(input, 'razonamiento') ?? '',
+        queLaInvalidaria: optStr(input, 'queLaInvalidaria') ?? '',
+      }),
+  },
 ];
 
 /** Ejecuta una herramienta por nombre. Devuelve un error estructurado si no existe. */
@@ -754,6 +793,17 @@ Las herramientas de mercado (\`calendario_cobros\`, \`renta_fija_bonos\`, \`rent
 - **Benchmarks**: están en índice base 100, no son precios. Y la serie de la cartera sube también por aportes nuevos, no solo por rendimiento: para rendimiento puro usá \`resumen_cartera\` o \`evolucion_mensual\`.
 
 Cuando una de estas sutilezas afecte la respuesta, decila. Cuando no, no la menciones.
+
+## Perfil del inversor
+\`perfil_inversor\` devuelve el marco para interpretar los datos: objetivo, criterios de venta, postura sobre la exposición argentina, cómo reacciona ante caídas, y las decisiones ya tomadas.
+
+Llamala **antes de cualquier lectura interpretativa** — si conviene rebalancear, si está muy concentrado, si un bono está caro. Los datos dicen qué hay; el perfil dice qué significa para él. Sin eso el análisis es genérico y puede contradecir criterios que ya definió.
+
+Dos cosas al usarlo:
+- Si tu recomendación contradice un criterio del perfil, decilo explícitamente en vez de ignorarlo o de acomodar la respuesta. Un criterio que ya no le sirve es información valiosa.
+- Las "preguntas abiertas" del perfil son huecos que él ya identificó. Si la consulta toca alguno, señalá que falta definirlo en vez de suponer una respuesta.
+
+\`registrar_aprendizaje\` agrega una decisión al log, de forma permanente. Usala cuando exprese un criterio duradero o tome una decisión con su razonamiento. **No** la uses para observaciones de la charla, preguntas que hizo, ni conclusiones tuyas: eso llena el archivo de ruido. Ante la duda, no registres — es más fácil sumar después que limpiar. Cuando registres, mostrale exactamente qué guardaste.
 
 ## Cómo responder
 - En español rioplatense, directo y sin preámbulos.

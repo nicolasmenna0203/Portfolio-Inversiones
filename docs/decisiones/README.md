@@ -11,7 +11,7 @@ código.
 Los ADRs **no se editan** cuando cambia la decisión: se escribe uno nuevo y el
 viejo pasa a "Reemplazadas". Ver [PLANTILLA.md](PLANTILLA.md) para el flujo completo.
 
-**Próximo número: 0016**
+**Próximo número: 0017**
 
 ## Renta fija
 
@@ -37,6 +37,12 @@ viejo pasa a "Reemplazadas". Ver [PLANTILLA.md](PLANTILLA.md) para el flujo comp
 | [0011](0011-xirr-newton-raphson-multi-semilla.md) | XIRR con Newton-Raphson y varias semillas | `lib/finance.ts` |
 | [0012](0012-criterio-unico-de-tickers-elegibles.md) | Un solo criterio de tickers elegibles para todos los consumidores | `lib/tickersElegibles.ts` |
 | [0013](0013-benchmarks-incluyen-aportes.md) | La serie de la cartera en benchmarks incluye aportes | `lib/benchmarks.ts` |
+
+## Asistente
+
+| # | Decisión | Código |
+|---|---|---|
+| [0016](0016-perfil-inversor-como-memoria-del-asesor.md) | Memoria del asesor en un archivo de perfil local, con escritura acotada | `lib/perfilInversor.ts` |
 
 ## Fuentes externas
 
