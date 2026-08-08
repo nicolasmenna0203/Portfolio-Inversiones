@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   ComposedChart, Line, Area, XAxis, YAxis, Tooltip,
   CartesianGrid, ResponsiveContainer, ReferenceLine,
@@ -261,35 +261,122 @@ function initObjetivosDim(tenencias: TenenciaActual[], dim: DimObj): ObjetivoDim
   return result;
 }
 
+// Clave del localStorage donde vivían los objetivos antes de mudarlos al Sheet.
+// Se sigue leyendo una única vez para migrar lo que el usuario ya había cargado
+// (ver ADR 0017); una vez subido al Sheet, se borra.
 const STORAGE_KEY = 'proyecciones_objetivos_v1';
+
+type EstadoGuardado = 'inicial' | 'guardando' | 'guardado' | 'error';
 
 function ObjetivosComposicion({ tenencias }: { tenencias: TenenciaActual[] }) {
   const [dimActiva, setDimActiva] = useState<DimObj>('TIPO');
+  const [objetivosPorDim, setObjetivosPorDim] = useState<Record<DimObj, ObjetivoDim> | null>(null);
+  const [estado, setEstado] = useState<EstadoGuardado>('inicial');
 
-  const [objetivosPorDim, setObjetivosPorDim] = useState<Record<DimObj, ObjetivoDim>>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) return JSON.parse(saved) as Record<DimObj, ObjetivoDim>;
-    } catch {}
-    return {
-      TIPO:       initObjetivosDim(tenencias, 'TIPO'),
-      RIESGO:     initObjetivosDim(tenencias, 'RIESGO'),
-      MONEDA:     initObjetivosDim(tenencias, 'MONEDA'),
-      RENTA:      initObjetivosDim(tenencias, 'RENTA'),
-      SECTOR_GEO: initObjetivosDim(tenencias, 'SECTOR_GEO'),
-    };
-  });
+  // Valores por defecto: la composición actual redondeada, para que arrancar sea
+  // ajustar desde donde se está y no desde cero.
+  const porDefecto = useMemo((): Record<DimObj, ObjetivoDim> => ({
+    TIPO:       initObjetivosDim(tenencias, 'TIPO'),
+    RIESGO:     initObjetivosDim(tenencias, 'RIESGO'),
+    MONEDA:     initObjetivosDim(tenencias, 'MONEDA'),
+    RENTA:      initObjetivosDim(tenencias, 'RENTA'),
+    SECTOR_GEO: initObjetivosDim(tenencias, 'SECTOR_GEO'),
+  }), [tenencias]);
+
+  // Carga inicial desde el Sheet. Si no hay nada guardado todavía, se migra lo
+  // que hubiera en localStorage; si tampoco hay, se usan los valores por defecto.
+  useEffect(() => {
+    let cancelado = false;
+
+    (async () => {
+      let delSheet: Record<DimObj, ObjetivoDim> | null = null;
+      try {
+        const res = await fetch('/api/objetivos');
+        if (res.ok) {
+          const json = await res.json();
+          const obj = json?.objetivos as Record<DimObj, ObjetivoDim> | undefined;
+          if (obj && DIMS_CONFIG.some(d => Object.keys(obj[d.key] ?? {}).length > 0)) {
+            delSheet = obj;
+          }
+        }
+      } catch {
+        // Sin conexión al Sheet se sigue con local/defaults: la sección es
+        // usable aunque no se pueda persistir.
+      }
+      if (cancelado) return;
+
+      if (delSheet) {
+        setObjetivosPorDim(delSheet);
+        try { localStorage.removeItem(STORAGE_KEY); } catch {}
+        return;
+      }
+
+      let local: Record<DimObj, ObjetivoDim> | null = null;
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) local = JSON.parse(saved) as Record<DimObj, ObjetivoDim>;
+      } catch {}
+
+      if (local) {
+        setObjetivosPorDim(local);
+        // Migración: subir lo que ya estaba y limpiar la copia del navegador.
+        try {
+          const res = await fetch('/api/objetivos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ objetivos: local }),
+          });
+          if (res.ok) localStorage.removeItem(STORAGE_KEY);
+        } catch {}
+        return;
+      }
+
+      setObjetivosPorDim(porDefecto);
+    })();
+
+    return () => { cancelado = true; };
+    // Solo al montar: recargar pisaría ediciones en curso.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Persistencia con debounce: los sliders disparan un cambio por cada paso y
+  // escribir en el Sheet en cada uno sería una request por pixel.
+  const pendiente = useRef<Record<DimObj, ObjetivoDim> | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const guardar = useCallback((next: Record<DimObj, ObjetivoDim>) => {
+    pendiente.current = next;
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(async () => {
+      const aGuardar = pendiente.current;
+      if (!aGuardar) return;
+      setEstado('guardando');
+      try {
+        const res = await fetch('/api/objetivos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ objetivos: aGuardar }),
+        });
+        setEstado(res.ok ? 'guardado' : 'error');
+      } catch {
+        setEstado('error');
+      }
+    }, 800);
+  }, []);
+
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
 
   const categorias = useMemo(() => getCategorias(tenencias, dimActiva), [tenencias, dimActiva]);
   const pctReal    = useMemo(() => getPctReal(tenencias, dimActiva),    [tenencias, dimActiva]);
-  const objetivos  = objetivosPorDim[dimActiva];
+  const objetivos  = objetivosPorDim?.[dimActiva] ?? {};
   const suma       = sumaObjetivos(objetivos);
   const resta      = Math.max(0, 100 - suma);
 
   function setObjetivo(cat: string, val: number) {
     setObjetivosPorDim(prev => {
-      const next = { ...prev, [dimActiva]: { ...prev[dimActiva], [cat]: val } };
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch {}
+      const base = prev ?? porDefecto;
+      const next = { ...base, [dimActiva]: { ...base[dimActiva], [cat]: val } };
+      guardar(next);
       return next;
     });
   }
@@ -306,9 +393,21 @@ function ObjetivosComposicion({ tenencias }: { tenencias: TenenciaActual[] }) {
     }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-        <p style={{ margin: 0, fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--primary)' }}>
-          Objetivos de Composición
-        </p>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <p style={{ margin: 0, fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--primary)' }}>
+            Objetivos de Composición
+          </p>
+          {estado !== 'inicial' && (
+            <span style={{
+              fontSize: 10,
+              color: estado === 'error' ? 'var(--down)' : 'var(--muted)',
+            }}>
+              {estado === 'guardando' ? 'Guardando…'
+                : estado === 'guardado' ? 'Guardado ✓'
+                : 'No se pudo guardar'}
+            </span>
+          )}
+        </div>
         {/* Selector de dimensión */}
         <div style={{ display: 'flex', gap: 4 }}>
           {DIMS_CONFIG.map(d => (

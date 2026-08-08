@@ -22,7 +22,7 @@
  */
 
 import { fetchDashboardData } from './sheets';
-import { RIESGO_LABEL, RENTA_LABEL, GEO_LABEL } from './constants';
+import { RIESGO_LABEL, RENTA_LABEL, GEO_LABEL, MONEDA_LABEL } from './constants';
 import { tickersDeCartera } from './tickersElegibles';
 import { fetchCalendarioFinanciero } from './calendario';
 import { fetchPerformance } from './performance';
@@ -31,6 +31,7 @@ import { fetchPerformanceVariable } from './performanceVariable';
 import { fetchBenchmarks } from './benchmarks';
 import { FACTOR_NETO_DIVIDENDO } from './retenciones';
 import { leerPerfil, registrarDecision } from './perfilInversor';
+import { leerObjetivos, esDimension, DIMENSIONES, type Dimension } from './objetivos';
 import type { DashboardData, TenenciaActual } from '@/types';
 
 // ── Cache de proceso ──────────────────────────────────────────────────────────
@@ -215,6 +216,80 @@ async function distribucion({
     mes_key: mesKey,
     criterio,
     grupos: agrupar(tenencias, claves[criterio]),
+  };
+}
+
+/**
+ * Composición real de la cartera contra los objetivos fijados en el dashboard,
+ * con el desvío de cada categoría.
+ *
+ * Las etiquetas y el criterio de filtrado replican los de la pestaña de
+ * Proyecciones (`components/ProyeccionesTab.tsx`), que es donde se cargan los
+ * objetivos: si no coincidieran, las categorías no cruzarían y el desvío sería
+ * inventado. En particular, geografía se calcula solo sobre renta variable,
+ * igual que en la UI.
+ */
+async function objetivosComposicion({ dimension }: { dimension?: string }) {
+  const [data, objetivos] = await Promise.all([getData(), leerObjetivos()]);
+  const mesKey = resolverMes(data, undefined);
+  if (!mesKey) return { error: 'No hay tenencias cargadas.' };
+
+  const tenencias = data.tenenciasPorMes[mesKey] ?? [];
+
+  const etiqueta: Record<Dimension, (t: TenenciaActual) => string> = {
+    TIPO:       (t) => t.TIPO || 'Sin dato',
+    RIESGO:     (t) => RIESGO_LABEL[Number(t.RIESGO)] ?? 'Sin dato',
+    MONEDA:     (t) => MONEDA_LABEL[t.MONEDA] ?? t.MONEDA ?? 'Sin dato',
+    RENTA:      (t) => RENTA_LABEL[t.RENTA] ?? t.RENTA ?? 'Sin dato',
+    SECTOR_GEO: (t) => GEO_LABEL[t.SECTOR_GEO] ?? t.SECTOR_GEO ?? 'Sin dato',
+  };
+
+  const pedidas = dimension && esDimension(dimension.toUpperCase())
+    ? [dimension.toUpperCase() as Dimension]
+    : [...DIMENSIONES];
+
+  const salida = pedidas.map((dim) => {
+    // Geografía solo aplica a renta variable — mismo filtro que la UI.
+    const src = dim === 'SECTOR_GEO'
+      ? tenencias.filter((t) => t.RENTA === 'VAR' || t.RENTA === 'VARIABLE')
+      : tenencias;
+    const total = src.reduce((s, t) => s + t.tenencia_usd, 0);
+
+    const realPct: Record<string, number> = {};
+    for (const t of src) {
+      const cat = etiqueta[dim](t);
+      realPct[cat] = (realPct[cat] ?? 0) + (total > 0 ? (t.tenencia_usd / total) * 100 : 0);
+    }
+
+    const obj = objetivos[dim] ?? {};
+    const categorias = [...new Set([...Object.keys(realPct), ...Object.keys(obj)])].sort();
+
+    return {
+      dimension: dim,
+      tiene_objetivos: Object.keys(obj).length > 0,
+      total_usd: Math.round(total * 100) / 100,
+      categorias: categorias.map((cat) => {
+        const real = Math.round((realPct[cat] ?? 0) * 10) / 10;
+        const objetivo = obj[cat] ?? null;
+        return {
+          categoria: cat,
+          real_pct: real,
+          objetivo_pct: objetivo,
+          // Positivo = sobreponderado respecto al objetivo.
+          desvio_pp: objetivo == null ? null : Math.round((real - objetivo) * 10) / 10,
+          ajuste_usd: objetivo == null ? null : Math.round(((objetivo - real) / 100) * total * 100) / 100,
+        };
+      }),
+    };
+  });
+
+  return {
+    mes_key: mesKey,
+    dimensiones: salida,
+    nota:
+      'desvio_pp positivo = la categoría pesa más que su objetivo. ajuste_usd es cuánto ' +
+      'habría que mover (positivo = comprar, negativo = vender) para alcanzarlo. Las ' +
+      'dimensiones con tiene_objetivos=false no tienen objetivo fijado: no infieras uno.',
   };
 }
 
@@ -709,6 +784,23 @@ export const AGENT_TOOLS: AgentTool[] = [
     run: () => compararBenchmarks(),
   },
   {
+    name: 'objetivos_composicion',
+    description:
+      'Compara la composición real de la cartera contra los objetivos de asignación que el usuario fijó en la pestaña Proyecciones del dashboard, por tipo de activo, riesgo, moneda, tipo de renta y geografía. Devuelve el desvío en puntos porcentuales y cuántos USD habría que mover para alcanzar cada objetivo. Usar SIEMPRE que la pregunta sea sobre rebalanceo, si algo se fue de peso, o si la cartera está donde debería estar: el usuario rebalancea por peso contra estos objetivos, así que opinar sin leerlos es opinar sin el criterio. Si una dimensión tiene tiene_objetivos=false, no hay objetivo fijado y no hay que inferir uno.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        dimension: {
+          type: 'string',
+          enum: ['TIPO', 'RIESGO', 'MONEDA', 'RENTA', 'SECTOR_GEO'],
+          description: 'Dimensión puntual a consultar. Si se omite, devuelve las cinco.',
+        },
+      },
+      additionalProperties: false,
+    },
+    run: (input) => objetivosComposicion({ dimension: optStr(input, 'dimension') }),
+  },
+  {
     name: 'perfil_inversor',
     description:
       'Devuelve el perfil del inversor: objetivo, horizonte, criterios de venta, postura sobre la exposición argentina, cómo reacciona ante caídas, y el log de decisiones tomadas. Es el marco para interpretar los datos, no datos de la cartera. Llamala SIEMPRE antes de dar una lectura interpretativa (si conviene rebalancear, si está muy concentrado, si un bono está caro): sin esto el análisis es genérico y puede contradecir criterios que el usuario ya definió.',
@@ -793,6 +885,11 @@ Las herramientas de mercado (\`calendario_cobros\`, \`renta_fija_bonos\`, \`rent
 - **Benchmarks**: están en índice base 100, no son precios. Y la serie de la cartera sube también por aportes nuevos, no solo por rendimiento: para rendimiento puro usá \`resumen_cartera\` o \`evolucion_mensual\`.
 
 Cuando una de estas sutilezas afecte la respuesta, decila. Cuando no, no la menciones.
+
+## Objetivos de composición
+\`objetivos_composicion\` devuelve la composición real contra los objetivos de asignación que el usuario fijó en el dashboard, con el desvío en puntos porcentuales y el ajuste en USD.
+
+Uno de sus criterios de venta es el rebalanceo por peso, así que **cualquier pregunta sobre rebalanceo, concentración o "si algo se me fue de peso" se contesta con esta herramienta**, no con una lectura genérica de la distribución. Si una dimensión no tiene objetivos fijados, decilo en vez de inventar un objetivo razonable.
 
 ## Perfil del inversor
 \`perfil_inversor\` devuelve el marco para interpretar los datos: objetivo, criterios de venta, postura sobre la exposición argentina, cómo reacciona ante caídas, y las decisiones ya tomadas.

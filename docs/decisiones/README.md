@@ -11,7 +11,7 @@ código.
 Los ADRs **no se editan** cuando cambia la decisión: se escribe uno nuevo y el
 viejo pasa a "Reemplazadas". Ver [PLANTILLA.md](PLANTILLA.md) para el flujo completo.
 
-**Próximo número: 0017**
+**Próximo número: 0018**
 
 ## Renta fija
 
@@ -43,6 +43,7 @@ viejo pasa a "Reemplazadas". Ver [PLANTILLA.md](PLANTILLA.md) para el flujo comp
 | # | Decisión | Código |
 |---|---|---|
 | [0016](0016-perfil-inversor-como-memoria-del-asesor.md) | Memoria del asesor en un archivo de perfil local, con escritura acotada | `lib/perfilInversor.ts` |
+| [0017](0017-objetivos-de-composicion-en-el-sheet.md) | Objetivos de composición en el Sheet, no en localStorage | `lib/objetivos.ts` |
 
 ## Fuentes externas
 

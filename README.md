@@ -114,6 +114,7 @@ La alerta semanal se dispara desde GitHub Actions (`.github/workflows/alerta-sem
 | `Movimientos` | Fecha, Monto (USD), Ingreso/Salida | Flujos de caja — `ingreso` suma al acumulado, `salida` resta |
 | `Tenencias` | Ticker, Tenencia (ARS), Tenencia (USD), Fecha | Snapshots mensuales de posiciones |
 | `Ingresos` | Fecha, Empleador, Monto (ARS), Monto (USD) | Haberes acreditados |
+| `Objetivos` | Dimension, Categoria, Porcentaje | Composición objetivo por dimensión. La crea el dashboard sola al guardar por primera vez |
 
 ### Cálculo de métricas
 
