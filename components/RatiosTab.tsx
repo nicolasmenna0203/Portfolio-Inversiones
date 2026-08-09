@@ -23,13 +23,19 @@ import { sma, ema, bollinger, retornos, correlacionMovil } from '@/lib/ratios';
 
 // Referencias de mercado que no están en la cartera pero son el denominador
 // natural de casi cualquier análisis: medir una posición contra el mercado, el
-// oro o el dólar es lo que separa "subió" de "subió más que todo lo demás".
+// oro o la tasa larga es lo que separa "subió" de "subió más que todo lo demás".
+//
+// Las dos cripto están en pares porque ETH/BTC es la lectura estándar del
+// sector: casi todo lo cripto se mueve con BTC (ETH/BTC da correlación ~0,9 y
+// beta ~1,3 a 6 meses), así que contra USD ambas cuentan la misma historia y
+// una contra otra muestra cuál le está ganando.
 const BENCHMARKS: { ticker: string; label: string }[] = [
   { ticker: 'SPY',     label: 'S&P 500 (SPY)' },
   { ticker: 'QQQ',     label: 'Nasdaq 100 (QQQ)' },
   { ticker: 'GLD',     label: 'Oro (GLD)' },
   { ticker: 'TLT',     label: 'Bonos largos USA (TLT)' },
   { ticker: 'BTC-USD', label: 'Bitcoin' },
+  { ticker: 'ETH-USD', label: 'Ethereum' },
   { ticker: 'EEM',     label: 'Emergentes (EEM)' },
 ];
 
