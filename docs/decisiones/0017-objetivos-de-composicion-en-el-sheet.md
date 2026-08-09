@@ -41,8 +41,36 @@ distribución en vez de con el criterio del usuario.
 
 ## Decisión
 
-Los objetivos viven en una hoja `Objetivos` del mismo Google Sheet, con tres
-columnas: `Dimension`, `Categoria`, `Porcentaje`. Una fila por categoría.
+Los objetivos viven en una hoja `Objetivos` del mismo Google Sheet.
+
+**Layout: un bloque de dos columnas por dimensión, lado a lado**, separados por
+una columna vacía y con una fila `TOTAL` al pie de cada uno:
+
+```
+     A         B    C   D            E    F   G       H
+1  TIPO        %        RIESGO       %        MONEDA  %
+2  ACCION      15       AGRESIVO     7        CER     19
+3  ALTS        10       CONSERVADOR  7        DL      6
+...
+8  TOTAL      100       TOTAL       100       TOTAL  100
+```
+
+La primera versión usó tres columnas (`Dimension`, `Categoria`, `Porcentaje`) con
+una fila por categoría. Se cambió porque en la práctica eran 19 filas seguidas con
+el nombre de la dimensión repetido en cada una: correcto como estructura de datos,
+ilegible como planilla. El lector **acepta los dos formatos** y el viejo se migra
+al nuevo en el primer guardado.
+
+Detalles del layout que responden a un motivo:
+
+- **El `TOTAL` se escribe como número, no como fórmula.** El parser tiene que poder
+  distinguir esa fila y descartarla al leer, y una fórmula se rompería al reescribir
+  el bloque con menos categorías. Sirve de control visual: si no da 100, la
+  asignación está incompleta o excedida.
+- **Las categorías se ordenan alfabéticamente.** El orden de inserción del objeto es
+  arbitrario y hacía que las filas se movieran entre guardados sin que cambiara nada.
+- **El `TOTAL` solo aparece bajo bloques con datos**, para no mostrar un "0" que
+  parezca un objetivo fijado en cero.
 
 - **`lib/objetivos.ts`** lee y escribe. Si la hoja no existe, `leerObjetivos()`
   devuelve la estructura vacía en vez de fallar (estado normal antes del primer
@@ -84,6 +112,10 @@ guardados y el desvío sería inventado.
   Si se edita en un browser sin conexión al Sheet, ese cambio no persiste.
 - **Límite — un objetivo viejo es peor que ninguno.** Al persistir de verdad, los
   objetivos pueden quedar desactualizados y el asesor los va a tomar como vigentes.
+- **Límite — la hoja se reescribe entera en cada guardado.** Formato manual
+  (colores, anchos de columna, notas) sobrevive porque `values.clear` no lo toca,
+  pero cualquier fórmula o columna extra que se agregue a mano dentro del rango
+  `A1:Z200` se pierde. La hoja es salida del dashboard, no un espacio de trabajo.
 - **Revisar si:** aparece una sexta dimensión (hay que tocar `DIMENSIONES`, la UI y
   el mapa de etiquetas de la tool); o si los desvíos empiezan a mostrar categorías
   sin objetivo que sí lo tienen, señal de que las etiquetas se desincronizaron.

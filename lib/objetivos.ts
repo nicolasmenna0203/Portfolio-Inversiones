@@ -12,17 +12,49 @@
 // MCP no podía leerlos, así que el asesor daba recomendaciones de rebalanceo
 // sin conocer el objetivo contra el cual rebalancear.
 //
-// La hoja se crea sola en el primer guardado si no existe, para no obligar a
-// prepararla a mano.
+// ── Layout de la hoja ───────────────────────────────────────────────────────
+//
+// Cada dimensión ocupa un bloque de dos columnas, separados por una columna
+// vacía, para que la hoja se lea como cinco tablitas lado a lado en vez de
+// como una lista larga donde el nombre de la dimensión se repite en cada fila:
+//
+//        A         B    C    D            E    F    G       H   ...
+//   1  TIPO        %         RIESGO       %         MONEDA  %
+//   2  ACCION      15        CONSERVADOR  7         USD     49
+//   3  ALTS        10        MODERADO     55        PESO    26
+//   ...
+//   N  TOTAL      100        TOTAL       100        TOTAL  100
+//
+// La fila TOTAL la escribe el código como número (no como fórmula) porque el
+// parser la tiene que poder distinguir y descartar al leer; una fórmula
+// además se rompería al reescribir el bloque con menos categorías.
+//
+// El lector acepta también el formato anterior (columnas Dimension/Categoria/
+// Porcentaje, una fila por categoría) para no perder datos ya guardados: se
+// migran al layout nuevo en el primer guardado.
 
 import { google } from 'googleapis';
-import { readSheet } from './sheets';
+import { readSheet, getAuth } from './sheets';
 
 export const HOJA = 'Objetivos';
 
 /** Dimensiones por las que se puede fijar una composición objetivo. */
 export const DIMENSIONES = ['TIPO', 'RIESGO', 'MONEDA', 'RENTA', 'SECTOR_GEO'] as const;
 export type Dimension = (typeof DIMENSIONES)[number];
+
+/** Encabezado legible de cada bloque. La clave interna va en un comentario aparte. */
+const TITULO: Record<Dimension, string> = {
+  TIPO: 'TIPO',
+  RIESGO: 'RIESGO',
+  MONEDA: 'MONEDA',
+  RENTA: 'RENTA',
+  SECTOR_GEO: 'GEOGRAFIA',
+};
+
+/** Título del bloque → dimensión, para poder releer lo que se escribió. */
+const POR_TITULO = new Map<string, Dimension>(
+  DIMENSIONES.map((d) => [TITULO[d], d]),
+);
 
 export function esDimension(v: string): v is Dimension {
   return (DIMENSIONES as readonly string[]).includes(v);
@@ -40,10 +72,46 @@ function vacio(): ObjetivosPorDimension {
  * strings ya formateados, y el separador decimal depende de su locale.
  */
 function parsePct(raw: string): number | null {
-  const limpio = raw.trim().replace('%', '').replace(',', '.');
+  const limpio = String(raw ?? '').trim().replace('%', '').replace(',', '.');
   if (!limpio) return null;
   const n = Number(limpio);
   return Number.isFinite(n) ? n : null;
+}
+
+// ── Lectura ──────────────────────────────────────────────────────────────────
+
+/** Layout en bloques: se recorre la grilla cruda por pares de columnas. */
+function parsearBloques(grid: string[][]): ObjetivosPorDimension {
+  const out = vacio();
+  const header = grid[0] ?? [];
+
+  for (let col = 0; col < header.length; col++) {
+    const dim = POR_TITULO.get((header[col] ?? '').trim().toUpperCase());
+    if (!dim) continue;
+
+    // La columna del % es la siguiente; las categorías arrancan en la fila 2.
+    for (let fila = 1; fila < grid.length; fila++) {
+      const categoria = (grid[fila]?.[col] ?? '').trim();
+      if (!categoria || categoria.toUpperCase() === 'TOTAL') continue;
+      const pct = parsePct(grid[fila]?.[col + 1] ?? '');
+      if (pct == null) continue;
+      out[dim][categoria] = pct;
+    }
+  }
+  return out;
+}
+
+/** Formato anterior: filas Dimension | Categoria | Porcentaje. */
+function parsearFilasLargas(grid: string[][]): ObjetivosPorDimension {
+  const out = vacio();
+  for (let i = 1; i < grid.length; i++) {
+    const dim = (grid[i]?.[0] ?? '').trim().toUpperCase();
+    const categoria = (grid[i]?.[1] ?? '').trim();
+    const pct = parsePct(grid[i]?.[2] ?? '');
+    if (!esDimension(dim) || !categoria || pct == null) continue;
+    out[dim][categoria] = pct;
+  }
+  return out;
 }
 
 /**
@@ -55,23 +123,28 @@ export async function leerObjetivos(): Promise<ObjetivosPorDimension> {
   const id = process.env.SPREADSHEET_ID;
   if (!id) throw new Error('Falta env var SPREADSHEET_ID');
 
-  let filas: Record<string, string>[];
+  let grid: string[][];
   try {
-    filas = await readSheet(id, `${HOJA}!A:C`);
+    const sheets = google.sheets({ version: 'v4', auth: getAuth() });
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: id,
+      range: `${HOJA}!A1:Z200`,
+      valueRenderOption: 'FORMATTED_VALUE',
+    });
+    grid = (res.data.values ?? []) as string[][];
   } catch {
     return vacio();
   }
 
-  const out = vacio();
-  for (const f of filas) {
-    const dim = (f['Dimension'] ?? f['DIMENSION'] ?? '').trim().toUpperCase();
-    const categoria = (f['Categoria'] ?? f['CATEGORIA'] ?? '').trim();
-    const pct = parsePct(f['Porcentaje'] ?? f['PORCENTAJE'] ?? '');
-    if (!esDimension(dim) || !categoria || pct == null) continue;
-    out[dim][categoria] = pct;
-  }
-  return out;
+  if (grid.length === 0) return vacio();
+
+  // El formato viejo se reconoce por su encabezado; cualquier otra cosa se
+  // intenta leer como bloques.
+  const primera = (grid[0]?.[0] ?? '').trim().toLowerCase();
+  return primera === 'dimension' ? parsearFilasLargas(grid) : parsearBloques(grid);
 }
+
+// ── Escritura ────────────────────────────────────────────────────────────────
 
 function getAuthWrite() {
   const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
@@ -97,12 +170,60 @@ async function asegurarHoja(sheets: SheetsApi, id: string): Promise<void> {
 }
 
 /**
+ * Arma la grilla en bloques de dos columnas, uno por dimensión, con una
+ * columna vacía de separación y una fila TOTAL al pie de cada bloque.
+ */
+export function construirGrilla(objetivos: ObjetivosPorDimension): string[][] {
+  // Categorías ordenadas alfabéticamente: el orden de inserción del objeto es
+  // arbitrario y hacía que la hoja cambiara de orden entre guardados.
+  const bloques = DIMENSIONES.map((dim) => {
+    const entradas = Object.entries(objetivos[dim] ?? {})
+      .filter(([, pct]) => Number.isFinite(pct))
+      .sort(([a], [b]) => a.localeCompare(b, 'es'));
+    const total = entradas.reduce((s, [, pct]) => s + pct, 0);
+    return { dim, entradas, total };
+  });
+
+  const alto = Math.max(0, ...bloques.map((b) => b.entradas.length));
+  const grid: string[][] = [];
+
+  // Encabezado
+  const header: string[] = [];
+  for (const b of bloques) header.push(TITULO[b.dim], '%', '');
+  grid.push(header);
+
+  // Categorías
+  for (let i = 0; i < alto; i++) {
+    const fila: string[] = [];
+    for (const b of bloques) {
+      const e = b.entradas[i];
+      fila.push(e ? e[0] : '', e ? String(e[1]) : '', '');
+    }
+    grid.push(fila);
+  }
+
+  // Fila TOTAL, solo bajo los bloques que tienen algo cargado. Sirve de control
+  // visual: si no da 100, la asignación está incompleta o excedida.
+  if (alto > 0) {
+    grid.push([]);
+    const totales: string[] = [];
+    for (const b of bloques) {
+      const hay = b.entradas.length > 0;
+      totales.push(hay ? 'TOTAL' : '', hay ? String(Math.round(b.total * 10) / 10) : '', '');
+    }
+    grid.push(totales);
+  }
+
+  return grid;
+}
+
+/**
  * Reemplaza todos los objetivos por los recibidos.
  *
  * Es un overwrite completo, no un merge: la UI siempre manda el set entero, y
  * mezclar dejaría categorías viejas colgadas cuando se renombra o elimina una.
- * Se limpia un rango holgado antes de escribir para no dejar filas residuales
- * de un guardado anterior más largo.
+ * Se limpia un rango holgado antes de escribir para no dejar filas ni columnas
+ * residuales de un guardado anterior más grande.
  */
 export async function guardarObjetivos(objetivos: ObjetivosPorDimension): Promise<number> {
   const id = process.env.SPREADSHEET_ID;
@@ -111,23 +232,19 @@ export async function guardarObjetivos(objetivos: ObjetivosPorDimension): Promis
   const sheets = google.sheets({ version: 'v4', auth: getAuthWrite() });
   await asegurarHoja(sheets, id);
 
-  const filas: string[][] = [['Dimension', 'Categoria', 'Porcentaje']];
-  for (const dim of DIMENSIONES) {
-    for (const [categoria, pct] of Object.entries(objetivos[dim] ?? {})) {
-      if (!Number.isFinite(pct)) continue;
-      filas.push([dim, categoria, String(pct)]);
-    }
+  const grid = construirGrilla(objetivos);
+
+  await sheets.spreadsheets.values.clear({ spreadsheetId: id, range: `${HOJA}!A1:Z200` });
+  if (grid.length > 0) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: id,
+      range: `${HOJA}!A1`,
+      valueInputOption: 'RAW',
+      requestBody: { values: grid },
+    });
   }
 
-  await sheets.spreadsheets.values.clear({ spreadsheetId: id, range: `${HOJA}!A1:C1000` });
-  await sheets.spreadsheets.values.update({
-    spreadsheetId: id,
-    range: `${HOJA}!A1:C${filas.length}`,
-    valueInputOption: 'RAW',
-    requestBody: { values: filas },
-  });
-
-  return filas.length - 1; // sin el header
+  return DIMENSIONES.reduce((s, d) => s + Object.keys(objetivos[d] ?? {}).length, 0);
 }
 
 /** Normaliza cualquier objeto entrante al shape esperado, descartando basura. */

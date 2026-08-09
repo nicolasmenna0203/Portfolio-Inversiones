@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizar, esDimension, DIMENSIONES } from './objetivos';
+import { normalizar, esDimension, DIMENSIONES, construirGrilla } from './objetivos';
 
 describe('esDimension', () => {
   it('acepta las cinco dimensiones válidas', () => {
@@ -80,5 +80,69 @@ describe('normalizar', () => {
   it('no exige que los porcentajes sumen 100', () => {
     const r = normalizar({ TIPO: { ETF: 10, FCI: 20 } });
     expect(r.TIPO).toEqual({ ETF: 10, FCI: 20 });
+  });
+});
+
+describe('construirGrilla', () => {
+  const base = normalizar({
+    TIPO: { FCI: 25, ACCION: 15, ETF: 30, ALTS: 10, ARGY: 20 },
+    RENTA: { FIJA: 68, VARIABLE: 32 },
+  });
+
+  it('pone cada dimensión en su propio par de columnas, separadas por una vacía', () => {
+    const g = construirGrilla(base);
+    // TIPO en A/B, RIESGO en D/E, MONEDA en G/H, RENTA en J/K, GEOGRAFIA en M/N.
+    expect(g[0][0]).toBe('TIPO');
+    expect(g[0][1]).toBe('%');
+    expect(g[0][2]).toBe('');
+    expect(g[0][3]).toBe('RIESGO');
+    expect(g[0][9]).toBe('RENTA');
+    expect(g[0][12]).toBe('GEOGRAFIA');
+  });
+
+  it('ordena las categorías alfabéticamente para que la hoja no cambie entre guardados', () => {
+    const g = construirGrilla(base);
+    const categorias = g.slice(1).map((f) => f[0]).filter((c) => c && c !== 'TOTAL');
+    expect(categorias).toEqual(['ACCION', 'ALTS', 'ARGY', 'ETF', 'FCI']);
+  });
+
+  it('escribe el porcentaje junto a su categoría', () => {
+    const g = construirGrilla(base);
+    const fila = g.find((f) => f[0] === 'ETF');
+    expect(fila?.[1]).toBe('30');
+  });
+
+  it('cierra cada bloque cargado con su TOTAL', () => {
+    const g = construirGrilla(base);
+    const totales = g[g.length - 1];
+    expect(totales[0]).toBe('TOTAL');
+    expect(totales[1]).toBe('100');
+    // RENTA también suma 100, en su propio par de columnas.
+    expect(totales[9]).toBe('TOTAL');
+    expect(totales[10]).toBe('100');
+  });
+
+  it('no pone TOTAL bajo una dimensión sin objetivos', () => {
+    const g = construirGrilla(base);
+    const totales = g[g.length - 1];
+    expect(totales[3]).toBe(''); // RIESGO está vacío
+  });
+
+  it('deja celdas vacías donde un bloque tiene menos categorías que el más largo', () => {
+    const g = construirGrilla(base);
+    // RENTA tiene 2 categorías y TIPO tiene 5: la fila 3 (índice 3) ya no tiene RENTA.
+    expect(g[3][0]).toBeTruthy();
+    expect(g[3][9]).toBe('');
+  });
+
+  it('con todo vacío devuelve solo el encabezado, sin fila TOTAL', () => {
+    const g = construirGrilla(normalizar({}));
+    expect(g).toHaveLength(1);
+    expect(g[0][0]).toBe('TIPO');
+  });
+
+  it('el total refleja una asignación incompleta en vez de forzar 100', () => {
+    const g = construirGrilla(normalizar({ TIPO: { ETF: 40, FCI: 30 } }));
+    expect(g[g.length - 1][1]).toBe('70');
   });
 });
