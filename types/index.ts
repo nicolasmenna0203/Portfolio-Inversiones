@@ -323,3 +323,26 @@ export interface HistoricoResponse {
   puntos: PrecioHistoricoPunto[];
   generatedAt: number;
 }
+
+// ── Ratios entre dos activos ─────────────────────────────────────────────────
+
+/** Serie del par A/B más sus métricas. Los indicadores se calculan en el cliente. */
+export interface RatioResponse {
+  activoA: string;
+  activoB: string;
+  rango: RangoHistorico;
+  /** Alineada por fecha: solo las fechas presentes en ambas series. Ver lib/ratios.ts. */
+  puntos: { fecha: string; ratio: number; pxA: number; pxB: number }[];
+  estadisticas: {
+    actual: number;
+    minimo: number;
+    maximo: number;
+    promedio: number;
+    percentil: number | null;
+    variacion: number;
+    zScore: number | null;
+    correlacion: number | null;
+    beta: number | null;
+  } | null;
+  generatedAt: number;
+}

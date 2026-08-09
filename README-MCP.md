@@ -30,9 +30,20 @@ Los meses se piden en formato `YYYY-MM` (ej. `2026-07`). Si se omite, se usa el 
 | `renta_fija_fci` | VCP y rendimientos (día/mes/año/12m) de los FCI del broker | Planilla CAFCI |
 | `renta_variable_acciones` | Precio, variaciones, P/E, market cap, 52 semanas y dividend yield | Yahoo Finance |
 | `comparar_benchmarks` | Cartera vs. S&P 500, inflación, MEP, Bitcoin y oro (índice base 100) | Varias |
+| `ratio_activos` | Fuerza relativa entre dos activos: ratio A/B, percentil, z-score, correlación y beta. Sin argumentos lista los pares guardados | Yahoo Finance |
 
 Los tickers **no se pasan como parámetro**: se derivan de la cartera con el mismo criterio
-que usa el dashboard ([tickersElegibles.ts](lib/tickersElegibles.ts)).
+que usa el dashboard ([tickersElegibles.ts](lib/tickersElegibles.ts)). La excepción es
+`ratio_activos`, donde el par se pide explícitamente porque el sentido de la herramienta
+es comparar contra cualquier referencia, esté o no en la cartera.
+
+### Criterio y memoria
+
+| Herramienta | Devuelve |
+|---|---|
+| `objetivos_composicion` | Composición real vs. objetivos fijados, con desvío en pp y ajuste en USD |
+| `perfil_inversor` | Objetivo, criterios de venta, tolerancia y decisiones ya tomadas |
+| `registrar_aprendizaje` | Agrega una decisión al log del perfil (escritura) |
 
 Estas herramientas tardan entre 0,6 y 3 segundos la primera vez. Después salen del cache
 (15 minutos), así que un análisis largo no vuelve a esperar.

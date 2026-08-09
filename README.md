@@ -40,15 +40,16 @@ Por capas, para que no se desactualice con cada archivo nuevo:
 app/
   page.tsx           Server Component: fetchDashboardData() → <Dashboard>
   login/             login (el resto del sitio está detrás de middleware)
-  api/               15 route handlers: upload-*, performance*, fci,
+  api/               18 route handlers: upload-*, performance*, fci,
                      calendario-financiero, benchmarks, fx, noticias,
-                     ingresos, alertas/semanal, auth/*
-components/          18 componentes cliente; Dashboard.tsx orquesta los tabs
+                     ingresos, objetivos, ratio, ratios-guardados,
+                     alertas/semanal, auth/*
+components/          21 componentes cliente; Dashboard.tsx orquesta los tabs
 lib/                 lógica de negocio y acceso a datos (+ tests .test.ts)
   sheets.ts          fetchDashboardData(): las 4 hojas → modelo del dashboard
   precios.ts         precios spot y MEP
   bondMetrics.ts     TIR/duration/paridad de bonos
-  agentTools.ts      las 11 tools del MCP + SYSTEM_PROMPT
+  agentTools.ts      las 15 tools del MCP + SYSTEM_PROMPT
   use*.ts            hooks de datos del cliente
 mcp/server.ts        servidor MCP por stdio (delega en lib/agentTools.ts)
 middleware.ts        auth por cookie de sesión firmada (Edge runtime)

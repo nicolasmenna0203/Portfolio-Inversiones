@@ -32,6 +32,9 @@ import { fetchBenchmarks } from './benchmarks';
 import { FACTOR_NETO_DIVIDENDO } from './retenciones';
 import { leerPerfil, registrarDecision } from './perfilInversor';
 import { leerObjetivos, esDimension, DIMENSIONES, type Dimension } from './objetivos';
+import { leerRatios, esRango, normalizarTicker } from './ratiosGuardados';
+import { fetchHistoricoTicker } from './performanceVariable';
+import { serieRatio, estadisticas } from './ratios';
 import type { DashboardData, TenenciaActual } from '@/types';
 
 // ── Cache de proceso ──────────────────────────────────────────────────────────
@@ -290,6 +293,81 @@ async function objetivosComposicion({ dimension }: { dimension?: string }) {
       'desvio_pp positivo = la categoría pesa más que su objetivo. ajuste_usd es cuánto ' +
       'habría que mover (positivo = comprar, negativo = vender) para alcanzarlo. Las ' +
       'dimensiones con tiene_objetivos=false no tienen objetivo fijado: no infieras uno.',
+  };
+}
+
+/**
+ * Ratio A/B: fuerza relativa entre dos activos.
+ *
+ * Sin argumentos devuelve los pares que el usuario guardó en el dashboard —
+ * con su nota, que es el motivo por el que los sigue. Con `activo_a`/`activo_b`
+ * calcula el par pedido aunque no esté guardado, para poder explorar.
+ */
+async function ratioActivos({
+  activo_a, activo_b, rango,
+}: { activo_a?: string; activo_b?: string; rango?: string }) {
+  const guardados = await leerRatios();
+
+  // Sin par explícito: catálogo de lo que el usuario decidió seguir.
+  if (!activo_a && !activo_b) {
+    return {
+      pares_guardados: guardados.map((g) => ({
+        par: `${g.activoA}/${g.activoB}`,
+        activo_a: g.activoA,
+        activo_b: g.activoB,
+        rango: g.rango,
+        nota: g.nota,
+        creado: g.creado,
+      })),
+      nota:
+        guardados.length === 0
+          ? 'El usuario todavía no guardó ningún par. Podés pedir uno con activo_a y activo_b.'
+          : 'Estos son los pares que el usuario sigue. La nota dice por qué le importa cada uno. ' +
+            'Volvé a llamar con activo_a y activo_b para ver la serie y las métricas de uno.',
+    };
+  }
+
+  const a = normalizarTicker(activo_a);
+  const b = normalizarTicker(activo_b);
+  if (!a || !b) return { error: 'Hacen falta activo_a y activo_b, ambos símbolos válidos.' };
+  if (a === b) return { error: 'El ratio de un activo contra sí mismo es la constante 1.' };
+
+  const rangoFinal = rango && esRango(rango) ? rango : '1a';
+
+  const [ha, hb] = await Promise.all([
+    fetchHistoricoTicker(a, rangoFinal),
+    fetchHistoricoTicker(b, rangoFinal),
+  ]);
+  const serie = serieRatio(ha.puntos, hb.puntos);
+  const est = estadisticas(serie);
+
+  if (est == null) {
+    return { error: `No hay fechas en común entre ${a} y ${b} en el rango ${rangoFinal}.` };
+  }
+
+  const guardado = guardados.find((g) => g.activoA === a && g.activoB === b);
+
+  return {
+    par: `${a}/${b}`,
+    rango: rangoFinal,
+    puntos_serie: serie.length,
+    ratio_actual: round(est.actual),
+    minimo: round(est.minimo),
+    maximo: round(est.maximo),
+    promedio: round(est.promedio),
+    percentil: est.percentil == null ? null : round(est.percentil),
+    z_score: est.zScore == null ? null : round(est.zScore),
+    variacion_pct: round(est.variacion * 100),
+    correlacion: est.correlacion == null ? null : round(est.correlacion),
+    beta: est.beta == null ? null : round(est.beta),
+    guardado: guardado != null,
+    nota_usuario: guardado?.nota || null,
+    nota:
+      'ratio_actual = precio de A dividido precio de B. variacion_pct es cuánto rindió A por ' +
+      'encima de B en el período (positivo = A le ganó a B). percentil ubica el ratio de hoy ' +
+      'dentro del rango mín-máx del período. z_score son desvíos estándar respecto del promedio: ' +
+      '|z| > 2 es un extremo estadístico, no una señal de compra. correlacion y beta se calculan ' +
+      'sobre los retornos diarios de ambos activos.',
   };
 }
 
@@ -801,6 +879,25 @@ export const AGENT_TOOLS: AgentTool[] = [
     run: (input) => objetivosComposicion({ dimension: optStr(input, 'dimension') }),
   },
   {
+    name: 'ratio_activos',
+    description:
+      'Fuerza relativa entre dos activos: la serie del ratio A/B y sus métricas (ratio actual, mínimo, máximo, promedio, percentil, z-score, correlación y beta). Sin argumentos devuelve los pares que el usuario guardó en la pestaña Ratios del dashboard, con la nota de por qué sigue cada uno. Usar cuando la pregunta sea sobre si un activo le viene ganando a otro, si un par está estirado o barato contra su historia, o para comparar dos posiciones entre sí.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        activo_a: { type: 'string', description: 'Numerador del ratio, ej. "SPY". Omitir para listar los pares guardados.' },
+        activo_b: { type: 'string', description: 'Denominador del ratio, ej. "GLD".' },
+        rango: { type: 'string', description: 'Ventana: "1m", "6m", "1a" o "5a". Por defecto "1a".' },
+      },
+      additionalProperties: false,
+    },
+    run: (input) => ratioActivos({
+      activo_a: optStr(input, 'activo_a'),
+      activo_b: optStr(input, 'activo_b'),
+      rango: optStr(input, 'rango'),
+    }),
+  },
+  {
     name: 'perfil_inversor',
     description:
       'Devuelve el perfil del inversor: objetivo, horizonte, criterios de venta, postura sobre la exposición argentina, cómo reacciona ante caídas, y el log de decisiones tomadas. Es el marco para interpretar los datos, no datos de la cartera. Llamala SIEMPRE antes de dar una lectura interpretativa (si conviene rebalancear, si está muy concentrado, si un bono está caro): sin esto el análisis es genérico y puede contradecir criterios que el usuario ya definió.',
@@ -890,6 +987,15 @@ Cuando una de estas sutilezas afecte la respuesta, decila. Cuando no, no la menc
 \`objetivos_composicion\` devuelve la composición real contra los objetivos de asignación que el usuario fijó en el dashboard, con el desvío en puntos porcentuales y el ajuste en USD.
 
 Uno de sus criterios de venta es el rebalanceo por peso, así que **cualquier pregunta sobre rebalanceo, concentración o "si algo se me fue de peso" se contesta con esta herramienta**, no con una lectura genérica de la distribución. Si una dimensión no tiene objetivos fijados, decilo en vez de inventar un objetivo razonable.
+
+## Ratios entre activos
+\`ratio_activos\` mide fuerza relativa: cuánto rindió un activo por encima de otro, y si el par está estirado contra su propia historia. Sin argumentos lista los pares que el usuario guardó, con la nota de por qué sigue cada uno — leerla antes de opinar sobre el par, porque dice qué está mirando.
+
+Dos advertencias al interpretarlo:
+- **El z-score y el percentil describen, no recomiendan.** Un |z| > 2 dice que el ratio está en un extremo estadístico del período, no que vaya a revertir: un par puede quedarse estirado meses, y en una tendencia real el extremo es la tendencia, no una anomalía. Presentalo como contexto, nunca como señal de entrada o salida.
+- **Correlación baja no es error del par.** Que dos activos no se muevan juntos suele ser el motivo por el que tener los dos, así que no lo trates como un problema a corregir.
+
+Todas las métricas dependen del rango: un par puede estar en el percentil 90 a un año y en el 30 a cinco. Si la lectura cambia según la ventana, decilo en vez de elegir una sola.
 
 ## Perfil del inversor
 \`perfil_inversor\` devuelve el marco para interpretar los datos: objetivo, criterios de venta, postura sobre la exposición argentina, cómo reacciona ante caídas, y las decisiones ya tomadas.
