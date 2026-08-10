@@ -98,17 +98,58 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
 
 function Metrica({ label, valor, color, hint }: { label: string; valor: string; color?: string; hint?: string }) {
   return (
-    <div title={hint} style={{
+    <div style={{
       background: 'var(--card)', border: '1px solid var(--border)',
       borderRadius: 10, padding: '10px 14px', minWidth: 0,
     }}>
-      <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--muted)', margin: 0 }}>
+      <p style={{
+        display: 'flex', alignItems: 'center', gap: 4,
+        fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+        color: 'var(--muted)', margin: 0,
+      }}>
         {label}
+        {hint && <InfoHint texto={hint} />}
       </p>
       <p style={{ fontSize: 17, fontWeight: 700, color: color ?? 'var(--text)', margin: '3px 0 0' }}>
         {valor}
       </p>
     </div>
+  );
+}
+
+// Ícono de info con tooltip propio: un `title` nativo no tiene ningún
+// indicio visual de que existe, así que nadie hace hover para descubrirlo.
+// El ícono hace explícito que hay una explicación disponible.
+function InfoHint({ texto }: { texto: string }) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <span
+      tabIndex={0}
+      role="button"
+      aria-label={texto}
+      onMouseEnter={() => setVisible(true)}
+      onMouseLeave={() => setVisible(false)}
+      onFocus={() => setVisible(true)}
+      onBlur={() => setVisible(false)}
+      style={{ position: 'relative', display: 'inline-flex', cursor: 'help' }}
+    >
+      <svg width="11" height="11" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <circle cx="8" cy="8" r="7" stroke="var(--muted)" strokeWidth="1.3" />
+        <circle cx="8" cy="4.6" r="0.9" fill="var(--muted)" />
+        <path d="M8 7.2v4.6" stroke="var(--muted)" strokeWidth="1.3" strokeLinecap="round" />
+      </svg>
+      {visible && (
+        <span style={{
+          position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%', transform: 'translateX(-50%)',
+          background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8,
+          padding: '8px 10px', fontSize: 11, fontWeight: 400, letterSpacing: 'normal', textTransform: 'none',
+          color: 'var(--text-sec)', width: 200, boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+          zIndex: 10, pointerEvents: 'none',
+        }}>
+          {texto}
+        </span>
+      )}
+    </span>
   );
 }
 
@@ -411,7 +452,11 @@ export default function RatiosTab({ data }: Props) {
           display: 'grid', gap: 8, flexShrink: 0,
           gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
         }}>
-          <Metrica label="Ratio actual" valor={est.actual.toFixed(4)} />
+          <Metrica
+            label="Ratio actual"
+            valor={est.actual.toFixed(4)}
+            hint={`Precio de ${activoA} dividido precio de ${activoB}, al último dato disponible`}
+          />
           <Metrica
             label={`Var. ${rango}`}
             valor={`${est.variacion >= 0 ? '+' : ''}${(est.variacion * 100).toFixed(1)}%`}
