@@ -171,6 +171,21 @@ input, select, textarea { font-size: 16px; }
 }
 .scroll-x::-webkit-scrollbar { display: none; }
 
+/* ── Área de contenido del tab: acá vive el scroll vertical ───
+   Regla base (no solo mobile): `main` tiene height:100vh fijo y cada
+   sección de tab usa flex:1 + minHeight:0, así que cualquier tab cuyo
+   contenido supere el viewport necesita poder scrollear también en
+   desktop. Sin esto el contenido excedente queda cortado y sin forma
+   de alcanzarlo (visto en Ratios: "Pares guardados" tapado). */
+.tab-scroll {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  /* espacio para que el botón de chat flotante (fixed, 52px + 24px de
+     margen) no tape la última fila de contenido al scrollear del todo */
+  padding-bottom: 84px;
+}
+
 /* ──────────────────────────────────────────
    MOBILE — ≤ 768px
    El contenido scrollea; header y tabs quedan fijos arriba.
@@ -257,12 +272,9 @@ input, select, textarea { font-size: 16px; }
   }
   .mobile-filtros .filtros-sep { display: none; }
 
-  /* ── Área de contenido del tab: acá vive el scroll vertical ── */
+  /* ── Área de contenido del tab: overflow ya es regla base; acá solo
+     el espacio extra para que el bot flotante no tape el final ── */
   .tab-scroll {
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior-y: contain;
-    /* espacio para que el bot flotante no tape el final del contenido */
     padding-bottom: calc(84px + env(safe-area-inset-bottom));
   }
 
