@@ -28,7 +28,7 @@ import type { RangoHistorico } from '@/types';
 
 export const HOJA = 'Ratios';
 
-const RANGOS: readonly RangoHistorico[] = ['1m', '6m', '1a', '5a'];
+const RANGOS: readonly RangoHistorico[] = ['1m', '6m', '1a', '5a', '10a'];
 
 export function esRango(v: string): v is RangoHistorico {
   return (RANGOS as readonly string[]).includes(v);

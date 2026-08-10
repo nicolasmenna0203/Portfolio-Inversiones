@@ -21,6 +21,7 @@ const RANGOS: { id: RangoHistorico; label: string }[] = [
   { id: '6m', label: '6M' },
   { id: '1a', label: '1A' },
   { id: '5a', label: '5A' },
+  { id: '10a', label: '10A' },
 ];
 
 function fmtPx(v: number): string {

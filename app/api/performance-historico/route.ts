@@ -5,7 +5,7 @@ import type { HistoricoResponse, RangoHistorico } from '@/types';
 export const runtime = 'nodejs';
 export const revalidate = 3600; // 1 hora
 
-const RANGOS_VALIDOS = new Set<RangoHistorico>(['1m', '6m', '1a', '5a']);
+const RANGOS_VALIDOS = new Set<RangoHistorico>(['1m', '6m', '1a', '5a', '10a']);
 
 export async function GET(req: NextRequest) {
   try {
@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Falta query param ticker' }, { status: 400 });
     }
     if (!rango || !RANGOS_VALIDOS.has(rango)) {
-      return NextResponse.json({ error: 'rango inválido (usar 1m, 6m, 1a o 5a)' }, { status: 400 });
+      return NextResponse.json({ error: 'rango inválido (usar 1m, 6m, 1a, 5a o 10a)' }, { status: 400 });
     }
 
     const body: HistoricoResponse = await fetchHistoricoTicker(ticker, rango);

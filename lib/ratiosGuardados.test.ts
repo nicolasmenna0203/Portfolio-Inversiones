@@ -5,8 +5,8 @@ import {
 } from './ratiosGuardados';
 
 describe('esRango', () => {
-  it('acepta los cuatro rangos válidos', () => {
-    for (const r of ['1m', '6m', '1a', '5a']) expect(esRango(r)).toBe(true);
+  it('acepta los cinco rangos válidos', () => {
+    for (const r of ['1m', '6m', '1a', '5a', '10a']) expect(esRango(r)).toBe(true);
   });
 
   it('rechaza cualquier otro', () => {

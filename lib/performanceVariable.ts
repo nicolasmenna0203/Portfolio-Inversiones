@@ -56,8 +56,9 @@ const RANGO_A_PARAMS: Record<RangoHistorico, { range: string; interval: string }
   '1m': { range: '1mo', interval: '1d' },
   '6m': { range: '6mo', interval: '1d' },
   '1a': { range: '1y', interval: '1d' },
-  // interval semanal en el rango largo: evita traer miles de puntos diarios de 5 años.
+  // interval semanal en los rangos largos: evita traer miles de puntos diarios.
   '5a': { range: '5y', interval: '1wk' },
+  '10a': { range: '10y', interval: '1wk' },
 };
 
 const cacheHistorico = new Map<string, { puntos: PrecioHistoricoPunto[]; ts: number }>();

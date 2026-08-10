@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'El ratio de un activo contra sí mismo es constante 1' }, { status: 400 });
     }
     if (!esRango(rangoRaw)) {
-      return NextResponse.json({ error: 'rango inválido (usar 1m, 6m, 1a o 5a)' }, { status: 400 });
+      return NextResponse.json({ error: 'rango inválido (usar 1m, 6m, 1a, 5a o 10a)' }, { status: 400 });
     }
     const rango: RangoHistorico = rangoRaw;
 

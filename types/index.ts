@@ -315,7 +315,7 @@ export interface PrecioHistoricoPunto {
   close: number;
 }
 
-export type RangoHistorico = '1m' | '6m' | '1a' | '5a';
+export type RangoHistorico = '1m' | '6m' | '1a' | '5a' | '10a';
 
 export interface HistoricoResponse {
   ticker: string;

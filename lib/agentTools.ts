@@ -887,7 +887,7 @@ export const AGENT_TOOLS: AgentTool[] = [
       properties: {
         activo_a: { type: 'string', description: 'Numerador del ratio, ej. "SPY". Omitir para listar los pares guardados.' },
         activo_b: { type: 'string', description: 'Denominador del ratio, ej. "GLD".' },
-        rango: { type: 'string', description: 'Ventana: "1m", "6m", "1a" o "5a". Por defecto "1a".' },
+        rango: { type: 'string', description: 'Ventana: "1m", "6m", "1a", "5a" o "10a". Por defecto "1a".' },
       },
       additionalProperties: false,
     },
