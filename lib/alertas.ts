@@ -90,6 +90,12 @@ function fmtFechaLegible(fecha: string): string {
   return d.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', timeZone: 'UTC' });
 }
 
+/** Fecha corta dd/mm/aaaa para el encabezado del mail. */
+function fmtFechaLarga(fecha: string): string {
+  const d = new Date(fecha + 'T00:00:00Z');
+  return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' });
+}
+
 function fmtMonto(monto: number, moneda = 'USD'): string {
   const simbolo = moneda === 'ARS' ? '$' : 'US$';
   return `≈ ${simbolo} ${monto.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -409,9 +415,14 @@ export function armarContenidoMail(alerta: AlertaSemanal): { asunto: string; tex
   <tr><td align="center" style="padding:24px 12px">
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="640" style="border-collapse:collapse;max-width:640px;width:100%;background-color:${C.bg}">
 
-      <tr><td style="padding:0 24px">
-        <div style="font-family:${FONT};font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:${C.accent}">Resumen semanal</div>
-        <div style="font-family:${FONT};font-size:22px;font-weight:700;color:${C.text};padding-top:4px">Tu cartera esta semana</div>
+      <tr><td style="padding:0 0 18px 0">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;background-color:${C.text};border-radius:12px">
+          <tr><td style="padding:22px 24px 18px 24px">
+            <div style="font-family:${FONT};font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:#e7dcc4">📊&nbsp; Resumen semanal · Portafolio</div>
+            <div style="font-family:${FONT};font-size:12px;color:#b8ac91;padding-top:6px">🗓️&nbsp; ${esc(fmtFechaLarga(alerta.desde))}</div>
+          </td></tr>
+          <tr><td style="padding:0 24px 3px 24px"><div style="height:3px;background-color:${C.accent};border-radius:0 0 3px 3px;font-size:0;line-height:0">&nbsp;</div></td></tr>
+        </table>
       </td></tr>
 
       ${variacion ? bloqueVariacion(variacion) : ''}
