@@ -1,6 +1,7 @@
 import type { HistoricoResponse, PerformanceVariableResponse, PrecioHistoricoPunto, RangoHistorico, StockPerformance } from '@/types';
 import { datosAcciones } from './precios';
 import { fetchFundamentals } from './yahooFundamentals';
+import { aliasYahoo } from './tickersElegibles';
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0 Safari/537.36';
 
@@ -71,7 +72,7 @@ export async function fetchHistoricoTicker(ticker: string, rango: RangoHistorico
   }
 
   const { range, interval } = RANGO_A_PARAMS[rango];
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=${range}&interval=${interval}`;
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(aliasYahoo(ticker))}?range=${range}&interval=${interval}`;
   const res = await fetch(url, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(8000) });
   if (!res.ok) throw new Error(`Yahoo chart (${ticker}): HTTP ${res.status}`);
   const json = await res.json();

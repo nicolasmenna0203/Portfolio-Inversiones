@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { tickersDeCartera } from './tickersElegibles';
+import { tickersDeCartera, aliasYahoo } from './tickersElegibles';
 import type { TenenciaActual } from '@/types';
 
 function item(partial: Partial<TenenciaActual> & { ticker: string }): TenenciaActual {
@@ -65,5 +65,16 @@ describe('tickersDeCartera', () => {
     const { tickersUsa, tenencias } = tickersDeCartera([item({ ticker: 'aapl', tenencia_usd: 10 })]);
     expect(tickersUsa).toEqual(['AAPL']);
     expect(tenencias).toEqual({ AAPL: 10 });
+  });
+});
+
+describe('aliasYahoo', () => {
+  it('traduce la forma sin separador al símbolo real de Yahoo', () => {
+    expect(aliasYahoo('BRKB')).toBe('BRK-B');
+    expect(aliasYahoo('brkb')).toBe('BRK-B');
+  });
+
+  it('deja sin cambios un ticker sin alias', () => {
+    expect(aliasYahoo('AAPL')).toBe('AAPL');
   });
 });
