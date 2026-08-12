@@ -7,18 +7,20 @@ import RentaFijaSection from './RentaFijaSection';
 import RentaVariableSection from './RentaVariableSection';
 import CarryTradeSection from './CarryTradeSection';
 import FciSection from './FciSection';
+import RatiosTab from './RatiosTab';
 
 interface Props {
   data: DashboardData;
 }
 
-type SubTab = 'fija' | 'variable' | 'carry' | 'fci';
+type SubTab = 'fija' | 'variable' | 'carry' | 'fci' | 'ratios';
 
 const SUB_TABS: { id: SubTab; label: string }[] = [
   { id: 'fija',     label: 'Renta Fija' },
   { id: 'variable', label: 'Renta Variable' },
   { id: 'carry',    label: 'Carry Trade' },
   { id: 'fci',      label: 'FCI' },
+  { id: 'ratios',   label: 'Ratios' },
 ];
 
 export default function PerformanceTab({ data }: Props) {
@@ -66,6 +68,7 @@ export default function PerformanceTab({ data }: Props) {
       {subTab === 'variable' && <RentaVariableSection tickersUsa={tickersUsa} tenencias={tenencias} />}
       {subTab === 'carry' && <CarryTradeSection tenencias={tenencias} />}
       {subTab === 'fci' && <FciSection tenencias={tenencias} />}
+      {subTab === 'ratios' && <RatiosTab data={data} />}
     </div>
   );
 }

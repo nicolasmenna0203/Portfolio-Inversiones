@@ -197,6 +197,27 @@ export default function CarryTradeSection({ tenencias }: Props) {
     else { setSortKey(key); setSortDesc(false); }
   }
 
+  // Columnas de carry por escenario de MEP de salida, ordenadas de menor a
+  // mayor valor — así "Carry custom" se ubica entre las columnas fijas que le
+  // corresponden según dónde cae (ej. custom=1450 queda entre 1400 y 1500) en
+  // vez de vivir siempre en una posición fija sin relación con su valor.
+  const columnasCarry = useMemo(() => {
+    const fijas: { key: 't1400' | 't1500' | 't1600'; mep: number; label: string }[] = [
+      { key: 't1400', mep: 1400, label: 'Carry 1400' },
+      { key: 't1500', mep: 1500, label: 'Carry 1500' },
+      { key: 't1600', mep: 1600, label: 'Carry 1600' },
+    ];
+    const columnas: { key: 't1400' | 't1500' | 't1600' | 'custom'; label: string; custom: boolean }[] =
+      fijas.map((f) => ({ key: f.key, label: f.label, custom: false }));
+    if (carryCustom != null) {
+      const idx = fijas.findIndex((f) => carryCustom < f.mep);
+      const entrada = { key: 'custom' as const, label: `Carry ${fmtArs(carryCustom)} (custom)`, custom: true };
+      if (idx === -1) columnas.push(entrada);
+      else columnas.splice(idx, 0, entrada);
+    }
+    return columnas;
+  }, [carryCustom]);
+
   const cabecera = (key: SortKey, label: string, align: 'left' | 'right' = 'right') => (
     <th
       onClick={() => toggleSort(key)}
@@ -367,12 +388,16 @@ export default function CarryTradeSection({ tenencias }: Props) {
               <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted)' }}>Vto.</th>
               <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted)' }}>Pr. finish</th>
               {cabecera(modoTasa === 'directa' ? 'retornoDirectoArs' : 'tir', modoTasa === 'directa' ? 'Retorno directo' : 'TIR')}
-              <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted)' }}>Carry 1400</th>
-              <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--primary)' }}>
-                Carry {carryCustom != null ? fmtArs(carryCustom) : '—'} (custom)
-              </th>
-              <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted)' }}>Carry 1500</th>
-              <th style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted)' }}>Carry 1600</th>
+              {columnasCarry.map((c) => (
+                <th
+                  key={c.key}
+                  style={{
+                    textAlign: 'right', padding: '8px 10px', fontSize: 10, fontWeight: 700,
+                    letterSpacing: '0.06em', textTransform: 'uppercase',
+                    color: c.custom ? 'var(--primary)' : 'var(--muted)',
+                  }}
+                >{c.label}</th>
+              ))}
               <th
                 title="Retorno en USD si el MEP de salida termina en el techo de banda cambiaria proyectado a esa fecha con la inflación mensual asumida."
                 style={{ textAlign: 'right', padding: '8px 10px', fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--muted)', cursor: 'help' }}
@@ -402,18 +427,17 @@ export default function CarryTradeSection({ tenencias }: Props) {
                 <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 700, color: 'var(--text)' }}>
                   {fmtPct1(modoTasa === 'directa' ? i.retornoDirectoArs : i.tir)}
                 </td>
-                <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 700, background: colorHeatmap(i.carryPorTarget.t1400), color: colorHeatmapTexto(i.carryPorTarget.t1400) }}>
-                  {i.carryPorTarget.t1400 != null ? fmtPct1(i.carryPorTarget.t1400) : '—'}
-                </td>
-                <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 700, background: colorHeatmap(i.carryPorTarget.custom), color: colorHeatmapTexto(i.carryPorTarget.custom) }}>
-                  {i.carryPorTarget.custom != null ? fmtPct1(i.carryPorTarget.custom) : '—'}
-                </td>
-                <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 700, background: colorHeatmap(i.carryPorTarget.t1500), color: colorHeatmapTexto(i.carryPorTarget.t1500) }}>
-                  {i.carryPorTarget.t1500 != null ? fmtPct1(i.carryPorTarget.t1500) : '—'}
-                </td>
-                <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 700, background: colorHeatmap(i.carryPorTarget.t1600), color: colorHeatmapTexto(i.carryPorTarget.t1600) }}>
-                  {i.carryPorTarget.t1600 != null ? fmtPct1(i.carryPorTarget.t1600) : '—'}
-                </td>
+                {columnasCarry.map((c) => (
+                  <td
+                    key={c.key}
+                    style={{
+                      padding: '7px 10px', textAlign: 'right', fontWeight: 700,
+                      background: colorHeatmap(i.carryPorTarget[c.key]), color: colorHeatmapTexto(i.carryPorTarget[c.key]),
+                    }}
+                  >
+                    {i.carryPorTarget[c.key] != null ? fmtPct1(i.carryPorTarget[c.key]!) : '—'}
+                  </td>
+                ))}
                 <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 700, background: colorHeatmap(i.bandaSuperior), color: colorHeatmapTexto(i.bandaSuperior) }}>
                   {i.bandaSuperior != null ? fmtPct1(i.bandaSuperior) : '—'}
                 </td>

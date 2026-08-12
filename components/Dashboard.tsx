@@ -18,10 +18,9 @@ import BenchmarksTab from './BenchmarksTab';
 import NoticiasTab from './NoticiasTab';
 import CalendarioTab from './CalendarioTab';
 import PerformanceTab from './PerformanceTab';
-import RatiosTab from './RatiosTab';
 import IngresosSection from './IngresosSection';
 import { FlagUS, FlagAR } from './FlagIcons';
-type Tab = 'resumen' | 'tenencias' | 'informe' | 'proyecciones' | 'benchmarks' | 'noticias' | 'calendario' | 'performance' | 'ratios' | 'ingresos';
+type Tab = 'resumen' | 'tenencias' | 'informe' | 'proyecciones' | 'benchmarks' | 'noticias' | 'calendario' | 'performance' | 'ingresos';
 
 const DIMS_TENENCIAS = [
   { key: 'TIPO',       label: 'Tipo de Activo'    },
@@ -41,7 +40,6 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'noticias',     label: 'Noticias'    },
   { id: 'calendario',   label: 'Calendario'  },
   { id: 'performance',  label: 'Performance' },
-  { id: 'ratios',       label: 'Ratios'      },
   { id: 'ingresos',     label: 'Ingresos'    },
 ];
 
@@ -529,17 +527,10 @@ const [uploadOpen, setUploadOpen] = useState(false);
         </section>
       )}
 
-      {/* ── Tab: Performance (TIR, duration, paridad de bonos) ────────────────── */}
+      {/* ── Tab: Performance (TIR, duration, paridad de bonos, ratios entre activos) ── */}
       {tab === 'performance' && (
         <section className="tab-scroll" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           <PerformanceTab data={data} />
-        </section>
-      )}
-
-      {/* ── Tab: Ratios (fuerza relativa entre dos activos) ───────────────────── */}
-      {tab === 'ratios' && (
-        <section className="tab-scroll" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-          <RatiosTab data={data} />
         </section>
       )}
 
