@@ -40,7 +40,9 @@ Tres reglas que se violan seguido:
    oficiales. Si parece impreciso, leé el ADR: la imprecisión suele ser la
    decisión. → 0001, 0002
 2. **Las TIR solo se comparan dentro del mismo grupo de tasa** (USD, CER,
-   ARS_TASA, DOLLAR_LINKED, BOPREAL). Cruzar grupos no significa nada. → 0004
+   ARS_TASA, DOLLAR_LINKED, BOPREAL, ONS_USD). Cruzar grupos no significa nada,
+   ni siquiera USD contra ONS_USD (mismo hard-dollar, distinto riesgo de
+   crédito). → 0004
 3. **Cada mes usa el MEP de ese mes**, no un MEP único; los aportes usan el MEP
    del día exacto del movimiento. → 0007
 

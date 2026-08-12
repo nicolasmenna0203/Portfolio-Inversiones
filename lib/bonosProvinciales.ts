@@ -343,6 +343,10 @@ export function calcularMetricasProvinciales(
       ticker: c.ticker,
       tickerCartera: c.ticker,
       bondFamily: c.nombre,
+      // No hay un campo de emisor separado del nombre acá (a diferencia de
+      // bonistas): `nombre` ya lo incluye ("Pcia. Buenos Aires...", "Bono
+      // Consolidación..."), así que no hace falta duplicarlo.
+      emisor: null,
       moneda: c.moneda,
       grupo: c.grupo,
       etiqueta: c.etiqueta,

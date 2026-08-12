@@ -10,7 +10,7 @@ import { MAPEO_BONOS_ARG } from './bonosArg';
 // Mismo patrón de scraping que ya usa bonosArg.ts para /proximos-pagos.
 
 /** Agrupamiento por tipo de tasa — TIRs de distinto grupo no son comparables entre sí. */
-export type GrupoBono = 'USD' | 'CER' | 'ARS_TASA' | 'DOLLAR_LINKED' | 'BOPREAL';
+export type GrupoBono = 'USD' | 'CER' | 'ARS_TASA' | 'DOLLAR_LINKED' | 'BOPREAL' | 'ONS_USD';
 
 // Tickers puntuales excluidos a pedido (no una familia entera): BDC28.
 const TICKERS_EXCLUIDOS = new Set(['BDC28']);
@@ -19,8 +19,10 @@ export interface BondMetric {
   ticker: string;          // símbolo cartera (ej. "AL30") si hay match en MAPEO_BONOS_ARG, si no el de bonistas
   tickerCartera: string | null; // ticker cartera solo si este bono está mapeado (para cruzar tenencias)
   bondFamily: string;
+  /** Emisor tal cual lo publica bonistas (ej. "YPF S.A.", "Pampa Energía", "Argentino"). */
+  emisor: string | null;
   moneda: string;         // moneda en la que se calculó la TIR (USD o ARS)
-  grupo: GrupoBono;        // USD hard-dollar / CER (ajustado inflación, incluye duales CER/TAMAR) / ARS tasa (LECAP, Tamar, Badlar) / dollar-linked
+  grupo: GrupoBono;        // USD hard-dollar / CER (ajustado inflación, incluye duales CER/TAMAR) / ARS tasa (LECAP, Tamar, Badlar) / dollar-linked / BOPREAL / ONS_USD (corporativas)
   etiqueta: string | null;  // aclaración sobre el grupo (ej. "CER/TAMAR" en duales) cuando el grupo solo no alcanza para describir el instrumento
   tir: number;             // TIR efectiva anual, en tanto por uno
   tna: number;             // tasa nominal anual, en tanto por uno
@@ -83,15 +85,16 @@ async function fetchBondDataRaw(): Promise<BondDataRaw[]> {
 
 /**
  * Mapa ticker → métricas de renta fija (TIR, TNA, duration, paridad,
- * sensibilidad) del universo de deuda pública que trackea bonistas.com
- * (soberanos + Lecap/Boncap/Bonte-TX/BOPREAL, aunque el dataset los etiquete
- * con emisor "BCRA" sin distinguirlos de letras de regulación monetaria del
- * Central — no hay forma de diferenciarlos con los campos disponibles, y ya
- * varios de esos tickers están confirmados como Tesoro en MAPEO_BONOS_ARG),
- * no solo los tickers de MAPEO_BONOS_ARG. Se excluyen ONs corporativas (YPF,
- * Pampa, Vista, etc.) — bonistas.com tampoco cubre deuda provincial (Buenos
- * Aires u otras) con TIR/duration, así que no puede incluirse desde esta
- * fuente.
+ * sensibilidad) del universo de deuda pública y obligaciones negociables
+ * corporativas hard-dollar que trackea bonistas.com (soberanos +
+ * Lecap/Boncap/Bonte-TX/BOPREAL, aunque el dataset los etiquete con emisor
+ * "BCRA" sin distinguirlos de letras de regulación monetaria del Central —
+ * no hay forma de diferenciarlos con los campos disponibles, y ya varios de
+ * esos tickers están confirmados como Tesoro en MAPEO_BONOS_ARG; más ONs de
+ * YPF/Pampa/Vista/Tecpetrol/etc. en su propio grupo ONS_USD, nunca mezcladas
+ * con la curva soberana), no solo los tickers de MAPEO_BONOS_ARG. bonistas.com
+ * no cubre deuda provincial (Buenos Aires u otras) con TIR/duration, así que
+ * no puede incluirse desde esta fuente.
  * Cuando el símbolo bonista tiene equivalente en MAPEO_BONOS_ARG, la entrada
  * usa el ticker cartera (ej. "AL30") como clave para poder cruzar tenencias;
  * si no, usa el ticker sin sufijo de especie (ej. "AL41", no "AL41D").
@@ -136,16 +139,38 @@ export async function fetchBondMetrics(): Promise<Map<string, BondMetric>> {
     // duration=0 con tir≠0. Sin este filtro ensucian el scatter en el origen
     // y arrastran la línea de tendencia.
     if (r.tir === 0 && r.modified_duration === 0) continue;
-    // Deuda pública únicamente: bond_family "ONS"/"ONS-CABLE" son obligaciones
-    // negociables corporativas (YPF, Pampa, Vista, Tecpetrol...), no
-    // emisiones del Estado. emisor "BCRA" NO implica letra de regulación
-    // monetaria del Central: bonistas etiqueta así a Lecap/Boncap/Bonte/TX-TZX
-    // del Tesoro también (ej. TA7D es la misma emisión que T30A7, mismo TEM/
-    // TNA/vencimiento, solo cambia la especie de liquidación) — de hecho ya
-    // varios de esos tickers (T30A7, TZX27, TZX28, S31L6...) están en
-    // MAPEO_BONOS_ARG. No hay forma de distinguir Tesoro de BCRA-real con los
-    // campos que trae este dataset, así que no se filtra por emisor.
-    if (r.bond_family?.startsWith('ONS')) continue;
+    // Variante del mismo problema con last_price roto (ej. TB27 con
+    // last_price=0.01): bonistas no vuelve a poner duration en 0, la fórmula
+    // internamente divide por un precio casi nulo y devuelve una duration en
+    // los miles de años (4308 en vez de ~1) junto con tir=0 — mismo "sin
+    // dato" real, disfrazado. parity < 0.01 (debería rondar 0.3-1.5, 1 = a la
+    // par) es la señal confiable: ningún bono con cotización real tiene
+    // paridad tan baja.
+    if (r.tir === 0 && r.parity != null && r.parity < 0.01) continue;
+    // Duration menor a ~73 días (0.2 años): la TIR anualizada de un
+    // instrumento a semanas del vencimiento o del próximo cupón amplifica
+    // cualquier ruido de precio a valores sin sentido económico (ej. una ON
+    // a 18 días con TIR de -145% TNA) aunque el precio esté bien — es un
+    // artefacto de la anualización, no información sobre el rendimiento real
+    // del instrumento. Se ve sobre todo en ONs de corto plazo; no excluye
+    // ningún ticker mapeado a la cartera (verificado contra MAPEO_BONOS_ARG).
+    if (r.modified_duration < 0.2) continue;
+    // Precio con escala rota en la fuente para esa especie puntual (ej.
+    // YMCPO: last_price=46216 cuando fair_value=100 — off por ~460x) deja
+    // una paridad implausible (0.30-0.51 en vez de converger a ~1) en un
+    // instrumento a meses del vencimiento, lo que arrastra la TIR a valores
+    // absurdos (455%). Paridad baja SÍ puede ser legítima en un bono largo
+    // castigado (ej. CUAP a CER, parity 0.55 con duration 9.7 años y TIR
+    // sana de 9%) — por eso la señal es la combinación con duration corta
+    // (<2 años), no la paridad sola: a esa distancia del vencimiento un bono
+    // performing converge a la par salvo default real, que el campo
+    // `performing` ya descartaría aparte.
+    if (r.modified_duration < 2 && r.parity != null && (r.parity < 0.7 || r.parity > 1.3)) continue;
+    // bond_family "ONS"/"ONS-CABLE" son obligaciones negociables corporativas
+    // (YPF, Pampa, Vista, Tecpetrol...), no emisiones del Estado — van a su
+    // propio grupo ONS_USD (ver más abajo), nunca mezcladas con la curva
+    // soberana: mismo riesgo de tasa pero distinto riesgo de crédito.
+    const esOns = r.bond_family?.startsWith('ONS') ?? false;
     // Tickers con sufijo (_PUT, _CAP, _TAM, _CER) no son bonos comprables de
     // forma independiente: _PUT son opciones (TIR sin relación con duration,
     // ej. -75% u 23%), _CAP trae TIR negativas que no coinciden con su propia
@@ -170,22 +195,26 @@ export async function fetchBondMetrics(): Promise<Map<string, BondMetric>> {
     // duplicaría el bono en la curva/tabla, así que se normaliza al ticker
     // base (sin sufijo D/C) y se usa esa única entrada. Solo D/C son sufijo
     // de especie pura acá — a diferencia de TY30P más abajo, "AL30" sin
-    // sufijo también circula como ticker propio (especie Pesos).
-    const tickerBase = r.ticker.replace(/[DC]$/, '');
+    // sufijo también circula como ticker propio (especie Pesos). Las ONs no
+    // entran acá aunque también sean index "USS": su sufijo de especie es
+    // C/D/O (no solo D/C) y la raíz no siempre es limpia (ej. "MC11D" y
+    // "MCC1D" son la misma especie de la misma ON, no comparten prefijo) —
+    // van por claveVencimiento más abajo, como el resto de no-USS.
+    const tickerBase = esOns ? r.ticker : r.ticker.replace(/[DC]$/, '');
 
-    // Otros bonos/letras (Lecap/Boncap/Bonte-TX/Tamar/BOPREAL) también tienen
-    // especies duplicadas, pero ahí el ticker de la especie USD no sigue el
-    // patrón "base + D/C" (ej. S31L6 → SL6D, T30A7 → TA7D, TML27 → TML7D,
-    // TY30P → TY30D — la P de TY30P es parte del nombre, no un sufijo
+    // Otros bonos/letras (Lecap/Boncap/Bonte-TX/Tamar/BOPREAL/ONs) también
+    // tienen especies duplicadas, pero ahí el ticker de la especie USD no
+    // sigue el patrón "base + D/C" (ej. S31L6 → SL6D, T30A7 → TA7D, TML27 →
+    // TML7D, TY30P → TY30D — la P de TY30P es parte del nombre, no un sufijo
     // separable). Se deduplica por emisor + índice + vencimiento en su
     // lugar: si ya se vio una entrada con esa combinación, esta es la
     // especie duplicada y se descarta (prevalece la primera, priorizada por
-    // el sort de arriba). No se usa para bonos USD hard-dollar (index "USS"):
-    // ahí distintos bonos (AL29 vs GD29, distinta legislación) comparten
-    // emisor/vencimiento/index legítimamente y el regex de ticker ya los
-    // separa bien.
+    // el sort de arriba). No se usa para bonos soberanos USD hard-dollar
+    // (index "USS", no ONs): ahí distintos bonos (AL29 vs GD29, distinta
+    // legislación) comparten emisor/vencimiento/index legítimamente y el
+    // regex de ticker ya los separa bien.
     const tickerCartera = simboloATickerCartera.get(r.ticker) ?? simboloATickerCartera.get(tickerBase) ?? null;
-    const claveVencimiento = r.index !== 'USS' ? `${r.emisor}|${r.index}|${r.end_date}` : null;
+    const claveVencimiento = (esOns || r.index !== 'USS') ? `${r.emisor}|${r.index}|${r.end_date}` : null;
     // Excepción: si ESTE ticker está mapeado a su propio ticker de cartera
     // (ej. DICP y DIP0, Discount ley Arg en 2 especies pero ambas cargadas
     // como posiciones separadas en el Sheet), no se descarta por colisión de
@@ -232,7 +261,14 @@ export async function fetchBondMetrics(): Promise<Map<string, BondMetric>> {
     // "O" — ya excluida más arriba por duplicar el mismo instrumento), así
     // que se matchea por prefijo en vez de una lista exacta de valores.
     const esBopreal = r.bond_family?.startsWith('BOPREAL') ?? false;
+    // Las ONs (YPF, Pampa, Vista...) cotizan en las mismas especies "USS"/
+    // "USDL" que la deuda soberana, pero son otro emisor y otro riesgo de
+    // crédito — van a su propio grupo, nunca mezcladas en la curva USD/
+    // DOLLAR_LINKED de AL30/GD30. bonistas no distingue hard-dollar de
+    // dollar-linked dentro de ONS (ambas conviven bajo "USS"/"USDL"), así que
+    // acá no hace falta partirlas en dos: se agrupan todas en ONS_USD.
     const grupo: GrupoBono =
+      esOns ? 'ONS_USD' :
       esBopreal ? 'BOPREAL' :
       r.index === 'USS' ? 'USD' :
       r.index === 'USDL' ? 'DOLLAR_LINKED' :
@@ -255,7 +291,8 @@ export async function fetchBondMetrics(): Promise<Map<string, BondMetric>> {
       ticker,
       tickerCartera,
       bondFamily: r.bond_family ?? '',
-      moneda: grupo === 'USD' || grupo === 'BOPREAL' ? 'USD' : 'ARS',
+      emisor: r.emisor,
+      moneda: grupo === 'USD' || grupo === 'BOPREAL' || grupo === 'ONS_USD' ? 'USD' : 'ARS',
       grupo,
       etiqueta: etiquetaTasa,
       tir: r.tir,

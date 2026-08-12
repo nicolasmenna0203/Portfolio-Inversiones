@@ -13,8 +13,9 @@ interface Props {
   tenencias: Record<string, number>;
 }
 
-// Paleta categórica validada (skill dataviz, slots 1-2-3: blue/orange/aqua) contra
-// las superficies reales del tema Prestige (--card claro #ffffff, oscuro #2c2620).
+// Paleta categórica validada (skill dataviz, slots 1-2-3-7-4-5: blue/orange/aqua/
+// violet/amber/magenta) contra las superficies reales del tema Prestige (--card
+// claro #ffffff, oscuro #2c2620).
 // TIRs de distinto grupo no son comparables entre sí (moneda/índice distinto),
 // así que cada uno tiene su propio color en vez de un gradiente continuo.
 const GRUPO_META: Record<GrupoBono, { label: string; color: string; colorDark: string }> = {
@@ -23,8 +24,9 @@ const GRUPO_META: Record<GrupoBono, { label: string; color: string; colorDark: s
   ARS_TASA:       { label: 'LECAP / Dual / Tamar / Badlar', color: '#1baf7a', colorDark: '#199e70' },
   DOLLAR_LINKED:  { label: 'Dollar-linked', color: '#4a3aa7', colorDark: '#9085e9' },
   BOPREAL:        { label: 'BOPREAL (BCRA)', color: '#eda100', colorDark: '#c98500' },
+  ONS_USD:        { label: 'ONs (hard-dollar)', color: '#e87ba4', colorDark: '#d55181' },
 };
-const GRUPO_ORDEN: GrupoBono[] = ['USD', 'CER', 'ARS_TASA', 'DOLLAR_LINKED', 'BOPREAL'];
+const GRUPO_ORDEN: GrupoBono[] = ['USD', 'CER', 'ARS_TASA', 'DOLLAR_LINKED', 'BOPREAL', 'ONS_USD'];
 
 function fmtPct1(v: number): string {
   return `${(v * 100).toFixed(1)}%`;
@@ -77,9 +79,14 @@ function crearScatterPoint(hoverTicker: string | null, onHover: (b: BondPerforma
     // Dentro de un mismo grupo/curva (ej. ARS_TASA) conviven subtipos de tasa
     // no comparables entre sí (Fija, TAMAR, Badlar, CER/TAMAR) — sin la
     // etiqueta en el label del hover, un bono TAMAR y uno Badlar se ven
-    // idénticos hasta bajar la vista a la tabla.
-    const texto = payload.etiqueta
-      ? `${payload.ticker} ${payload.etiqueta} · ${fmtPct1(payload.tir)}`
+    // idénticos hasta bajar la vista a la tabla. En ONS_USD no hay
+    // `etiqueta` (es de ARS_TASA), pero el equivalente es el emisor: un
+    // scatter de ~500 ONs es ilegible por ticker solo, ya que a diferencia
+    // de los soberanos el ticker no evoca la empresa (ej. "VSCXO" no dice
+    // "Vista Energy").
+    const calificador = payload.etiqueta ?? payload.emisor;
+    const texto = calificador
+      ? `${payload.ticker} ${calificador} · ${fmtPct1(payload.tir)}`
       : `${payload.ticker} · ${fmtPct1(payload.tir)}`;
     const anchoLabel = texto.length * ANCHO_POR_CARACTER + 12;
     // Clamp del label contra el área de plot real: sin esto, un punto cerca
@@ -381,7 +388,7 @@ export default function RentaFijaSection({ tenencias }: Props) {
         })}
       </div>
 
-      {/* ── Selector de grupo — siempre uno activo, nunca los 4 juntos:       */}
+      {/* ── Selector de grupo — siempre uno activo, nunca todos juntos:       */}
       {/*    sus TIR no son comparables entre sí (monedas/índices distintos). */}
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flexShrink: 0 }}>
         {GRUPO_ORDEN.map((g) => {
@@ -597,9 +604,14 @@ export default function RentaFijaSection({ tenencias }: Props) {
                         style={{ marginLeft: 3, color: 'var(--muted)', cursor: 'help' }}
                       >†</span>
                     )}
-                    {b.etiqueta && (
+                    {/* etiqueta (subtipo de tasa, ej. TAMAR/Badlar) y emisor
+                        (ONS_USD) nunca coexisten en el mismo bono — etiqueta
+                        es de ARS_TASA, emisor solo aporta en ONS_USD donde el
+                        ticker no evoca la empresa (ej. "VSCXO" no dice "Vista
+                        Energy") — así que comparten el mismo slot de texto. */}
+                    {(b.etiqueta ?? b.emisor) && (
                       <span style={{ marginLeft: 6, fontWeight: 600, fontSize: 10, color: 'var(--muted)' }}>
-                        {b.etiqueta}
+                        {b.etiqueta ?? b.emisor}
                       </span>
                     )}
                   </td>

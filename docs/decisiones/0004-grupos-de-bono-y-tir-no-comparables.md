@@ -37,8 +37,14 @@ números va a compararlos salvo que se le diga explícitamente que no puede.
 Cada bono se clasifica en un grupo cerrado:
 
 ```ts
-type GrupoBono = 'USD' | 'CER' | 'ARS_TASA' | 'DOLLAR_LINKED' | 'BOPREAL'
+type GrupoBono = 'USD' | 'CER' | 'ARS_TASA' | 'DOLLAR_LINKED' | 'BOPREAL' | 'ONS_USD'
 ```
+
+`ONS_USD` (obligaciones negociables corporativas hard-dollar: YPF, Pampa, Vista,
+Tecpetrol...) se agregó después, siguiendo esta misma regla — cotizan en las
+mismas especies hard-dollar/dollar-linked que la deuda soberana (`index` "USS"/
+"USDL" en bonistas.com), pero son otro emisor y otro riesgo de crédito, así que
+no entran al grupo `USD` aunque la moneda y el índice coincidan.
 
 Los ponderados (TIR y duration de cartera) se calculan **por grupo**, nunca sobre
 el total. Cuando el grupo solo no alcanza para describir el instrumento se agrega
@@ -67,7 +73,7 @@ con la aproximación estándar. La sensibilidad se calcula en su lugar en
 - **Límite — el grupo se asigna por reglas sobre los datos de la fuente.** Un
   instrumento nuevo con estructura inusual puede caer en el grupo equivocado sin
   que nada avise.
-- **Revisar si:** aparece una clase de instrumento que no encaja en los cinco
-  grupos (ahí se agrega uno, no se fuerza dentro de otro); o si se agrega una
-  vista que necesite comparar entre grupos, que requeriría decidir y documentar
-  el supuesto de conversión.
+- **Revisar si:** aparece una clase de instrumento que no encaja en los seis
+  grupos actuales (ahí se agrega uno más, no se fuerza dentro de otro — es lo
+  que ya pasó con `ONS_USD`); o si se agrega una vista que necesite comparar
+  entre grupos, que requeriría decidir y documentar el supuesto de conversión.

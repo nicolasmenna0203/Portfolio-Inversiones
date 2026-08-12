@@ -565,7 +565,7 @@ async function rentaFijaBonos() {
 
   return {
     nota_comparabilidad:
-      'Las TIR solo son comparables dentro del mismo grupo: USD (hard dollar), CER (ajusta por inflación), ARS_TASA (tasa fija en pesos), DOLLAR_LINKED y BOPREAL. Comparar la TIR de un bono CER contra uno USD no significa nada.',
+      'Las TIR solo son comparables dentro del mismo grupo: USD (hard dollar soberano), CER (ajusta por inflación), ARS_TASA (tasa fija en pesos), DOLLAR_LINKED, BOPREAL y ONS_USD (obligaciones negociables corporativas hard dollar, distinto riesgo de crédito que la deuda soberana). Comparar la TIR de un bono CER contra uno USD no significa nada, y tampoco comparar un soberano USD contra una ON ONS_USD aunque ambas sean hard dollar.',
     cartera_por_grupo: res.carteraPorGrupo.map((g) => ({
       grupo: g.grupo,
       tir_ponderada_pct: round(g.tirPonderada * 100),

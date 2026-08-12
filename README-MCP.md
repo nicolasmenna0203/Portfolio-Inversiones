@@ -59,7 +59,8 @@ cuatro cosas que, si se ignoran, producen respuestas equivocadas:
 2. **El yield publicado es bruto, el cobro estimado es neto.** Son inconsistentes a
    propósito: el yield así se compara con cualquier screener.
 3. **Las TIR de bonos solo se comparan dentro del mismo grupo** (USD, CER, ARS_TASA,
-   DOLLAR_LINKED, BOPREAL). Cruzar grupos no significa nada.
+   DOLLAR_LINKED, BOPREAL, ONS_USD). Cruzar grupos no significa nada — ni siquiera USD
+   contra ONS_USD, aunque ambos sean hard-dollar: distinto riesgo de crédito.
 4. **En `comparar_benchmarks`, la serie de la cartera incluye aportes nuevos.** No es
    rendimiento puro: la cartera "creció" mucho más que cualquier benchmark simplemente
    porque le fuiste agregando plata. Para rendimiento real, `resumen_cartera`.

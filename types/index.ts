@@ -161,13 +161,15 @@ export interface SensibilidadTir {
 }
 
 /** Agrupamiento por tipo de tasa — TIRs de distinto grupo no son comparables entre sí. */
-export type GrupoBono = 'USD' | 'CER' | 'ARS_TASA' | 'DOLLAR_LINKED' | 'BOPREAL';
+export type GrupoBono = 'USD' | 'CER' | 'ARS_TASA' | 'DOLLAR_LINKED' | 'BOPREAL' | 'ONS_USD';
 
 export interface BondPerformance {
   ticker: string;
   /** Ticker cartera (ej. "AL30") si este bono está en MAPEO_BONOS_ARG; null si es del universo ampliado. */
   tickerCartera: string | null;
   bondFamily: string;
+  /** Emisor tal cual lo publica bonistas (ej. "YPF S.A.", "Pampa Energía"); null en provinciales/consolidación, donde ya va en bondFamily. */
+  emisor: string | null;
   moneda: string;              // moneda en la que se calculó la TIR (USD o ARS)
   grupo: GrupoBono;             // USD hard-dollar / CER (ajustado inflación, incluye duales CER/TAMAR) / ARS tasa / dollar-linked
   /** Aclaración sobre el grupo (ej. "CER/TAMAR" en duales) cuando el grupo solo no alcanza para describir el instrumento. */
