@@ -28,6 +28,17 @@ const DEMO_ONLY = process.env.DEMO_ONLY === 'true';
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
+  // En DEMO_ONLY, todo lo que no sea /demo o /api/demo (incluido /login, que
+  // de otra forma seguiría siendo público y mostraría un formulario que nunca
+  // deja pasar a nadie) va directo a /demo.
+  if (DEMO_ONLY) {
+    const esDemo = pathname.startsWith('/demo') || pathname.startsWith('/api/demo');
+    if (esDemo) return NextResponse.next();
+    const demoUrl = req.nextUrl.clone();
+    demoUrl.pathname = '/demo';
+    return NextResponse.redirect(demoUrl);
+  }
+
   const isPublic =
     PUBLIC_PATHS.some((p) => pathname.startsWith(p)) ||
     pathname.startsWith('/_next/static') ||
@@ -37,12 +48,6 @@ export async function middleware(req: NextRequest) {
     pathname === '/apple-icon.png';
 
   if (isPublic) return NextResponse.next();
-
-  if (DEMO_ONLY) {
-    const demoUrl = req.nextUrl.clone();
-    demoUrl.pathname = '/demo';
-    return NextResponse.redirect(demoUrl);
-  }
 
   const session = req.cookies.get('session')?.value;
   const secret = process.env.SESSION_SECRET;
