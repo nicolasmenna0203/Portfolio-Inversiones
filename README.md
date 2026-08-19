@@ -2,7 +2,7 @@
 
 Dashboard de seguimiento de una cartera de inversiones (CEDEARs, ETFs, bonos argentinos y FCI), conectado a Google Sheets como fuente de verdad. Incluye un servidor MCP que expone la cartera a Claude para análisis conversacional.
 
-**Demo pública sin datos reales:** [ver `/demo`](#demo-p%C3%BAblica) — mismo dashboard, con datos 100% sintéticos, sin login.
+**Demo pública sin datos reales:** [portfolio-tracker-demo-lake.vercel.app/demo](https://portfolio-tracker-demo-lake.vercel.app/demo) — mismo dashboard, con datos 100% sintéticos, sin login.
 
 ## Stack
 
@@ -36,7 +36,9 @@ Además: carga de tenencias, movimientos y haberes desde PDF; alerta semanal de 
 
 ## Demo pública
 
-La ruta `/demo` (y sus `/api/demo/*` correspondientes) sirve el mismo `<Dashboard>` con datos 100% sintéticos generados en `lib/demo/` — nunca lee Google Sheets ni pega a Yahoo/bonistas/CAFCI, así que no requiere login ni expone la cartera real. Corre como un segundo proyecto de Vercel, deployado desde esta misma rama, con su propia URL.
+**[portfolio-tracker-demo-lake.vercel.app/demo](https://portfolio-tracker-demo-lake.vercel.app/demo)**
+
+La ruta `/demo` (y sus `/api/demo/*` correspondientes) sirve el mismo `<Dashboard>` con datos 100% sintéticos generados en `lib/demo/` — nunca lee Google Sheets ni pega a Yahoo/bonistas/CAFCI, así que no requiere login ni expone la cartera real. Corre como un segundo proyecto de Vercel (`portfolio-tracker-demo`), deployado desde esta misma rama, con su propia URL desvinculada del dominio real.
 
 ## Arquitectura
 
