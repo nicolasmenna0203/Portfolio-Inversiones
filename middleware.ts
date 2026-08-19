@@ -12,6 +12,14 @@ import { verificarToken } from '@/lib/session';
 // pueda ver la app funcionando sin login ni acceso a la cartera real.
 const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/alertas/semanal', '/demo', '/api/demo'];
 
+// DEMO_ONLY marca el deploy de Vercel separado que solo sirve /demo (dominio
+// propio, sin relación con el sitio real, sin BASIC_AUTH_USER/PASS ni
+// SESSION_SECRET configurados a propósito — el login ahí siempre falla).
+// Con la variable seteada, cualquier ruta fuera de /demo redirige a /demo en
+// vez de a /login, para no mostrar una pantalla de login que nunca deja
+// entrar a nadie.
+const DEMO_ONLY = process.env.DEMO_ONLY === 'true';
+
 // La exclusión de _next/static, _next/image, favicon.ico, icon.svg y
 // apple-icon.png ya está en el `matcher` de abajo (Next ni siquiera invoca
 // este middleware para esas rutas). Se repite acá a propósito, no por
@@ -29,6 +37,12 @@ export async function middleware(req: NextRequest) {
     pathname === '/apple-icon.png';
 
   if (isPublic) return NextResponse.next();
+
+  if (DEMO_ONLY) {
+    const demoUrl = req.nextUrl.clone();
+    demoUrl.pathname = '/demo';
+    return NextResponse.redirect(demoUrl);
+  }
 
   const session = req.cookies.get('session')?.value;
   const secret = process.env.SESSION_SECRET;
