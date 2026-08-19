@@ -1,4 +1,4 @@
-# Portfolio de Inversiones
+# Portfolio Tracker
 
 Dashboard de seguimiento de una cartera (CEDEARs, ETFs, bonos argentinos, FCI) en
 Next.js 15 (App Router) + React 19 + TypeScript. Google Sheets es la fuente de

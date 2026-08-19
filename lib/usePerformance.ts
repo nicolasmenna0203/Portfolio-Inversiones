@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import type { PerformanceResponse } from '@/types';
 
 interface UsePerformanceResult {
@@ -14,13 +15,15 @@ export function usePerformance(tenencias: Record<string, number>): UsePerformanc
   const [data, setData] = useState<PerformanceResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const pathname = usePathname();
+  const apiBase = pathname?.startsWith('/demo') ? '/api/demo' : '/api';
 
   const tenenciasKey = JSON.stringify(tenencias);
 
   useEffect(() => {
     setLoading(true);
     setError(null);
-    fetch('/api/performance', {
+    fetch(`${apiBase}/performance`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tenencias: JSON.parse(tenenciasKey) }),
@@ -32,7 +35,7 @@ export function usePerformance(tenencias: Record<string, number>): UsePerformanc
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false));
-  }, [tenenciasKey]);
+  }, [tenenciasKey, apiBase]);
 
   return { data, loading, error };
 }

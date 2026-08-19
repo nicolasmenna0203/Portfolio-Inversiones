@@ -12,6 +12,7 @@
 // inusable. El servidor provee la serie; el cliente la interroga.
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { usePathname } from 'next/navigation';
 import {
   ComposedChart, Line, XAxis, YAxis, Tooltip, Legend,
   CartesianGrid, ResponsiveContainer, ReferenceLine,
@@ -194,6 +195,9 @@ function SelectorActivo({
 export default function RatiosTab({ data }: Props) {
   const { tenenciasPorMes } = data;
 
+  const pathname = usePathname();
+  const apiBase = pathname?.startsWith('/demo') ? '/api/demo' : '/api';
+
   // Universo de la cartera: tickers cotizables del último mes con datos.
   const tickersCartera = useMemo(() => {
     const meses = Object.keys(tenenciasPorMes).sort();
@@ -228,17 +232,17 @@ export default function RatiosTab({ data }: Props) {
   const [errorGuardar, setErrorGuardar] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/ratios-guardados')
+    fetch(`${apiBase}/ratios-guardados`)
       .then((r) => r.json())
       .then((json) => { if (!json.error) setGuardados(json.ratios ?? []); })
       .catch(() => { /* la lista vacía es un estado válido, no vale romper la pestaña */ });
-  }, []);
+  }, [apiBase]);
 
   useEffect(() => {
     if (!activoA || !activoB || activoA === activoB) { setResp(null); return; }
     setLoading(true);
     setError(null);
-    fetch(`/api/ratio?a=${encodeURIComponent(activoA)}&b=${encodeURIComponent(activoB)}&rango=${rango}`)
+    fetch(`${apiBase}/ratio?a=${encodeURIComponent(activoA)}&b=${encodeURIComponent(activoB)}&rango=${rango}`)
       .then((r) => r.json())
       .then((json) => {
         if (json.error) throw new Error(json.error);
@@ -246,7 +250,7 @@ export default function RatiosTab({ data }: Props) {
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false));
-  }, [activoA, activoB, rango]);
+  }, [activoA, activoB, rango, apiBase]);
 
   // ── Serie del gráfico con los indicadores aplicados ────────────────────────
 
@@ -292,7 +296,7 @@ export default function RatiosTab({ data }: Props) {
     setGuardando(true);
     setErrorGuardar(null);
     try {
-      const res = await fetch('/api/ratios-guardados', {
+      const res = await fetch(`${apiBase}/ratios-guardados`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ratios: lista }),
@@ -301,14 +305,15 @@ export default function RatiosTab({ data }: Props) {
       if (json.error) throw new Error(json.error);
       // Se toma la lista que devolvió el servidor, ya normalizada: si algo se
       // descartó al guardar, la pantalla lo refleja en vez de mostrar un par
-      // que en el Sheet no quedó.
+      // que en el Sheet no quedó. En /demo el POST es un no-op fake-success
+      // (json.ratios no viene), así que se conserva la lista local tal cual.
       setGuardados(json.ratios ?? lista);
     } catch (e) {
       setErrorGuardar(e instanceof Error ? e.message : String(e));
     } finally {
       setGuardando(false);
     }
-  }, []);
+  }, [apiBase]);
 
   function guardarActual() {
     const nuevo: RatioGuardado = {

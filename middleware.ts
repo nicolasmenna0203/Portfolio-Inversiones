@@ -6,7 +6,11 @@ import { verificarToken } from '@/lib/session';
 //
 // /api/alertas/semanal es pública acá porque la llama un cron externo sin
 // cookie de sesión — se autentica sola con CRON_SECRET (ver su route.ts).
-const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/alertas/semanal'];
+//
+// /demo y /api/demo son públicas a propósito: sirven el dashboard con datos
+// 100% sintéticos (lib/demo/) para que cualquiera que lea el repo público
+// pueda ver la app funcionando sin login ni acceso a la cartera real.
+const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/alertas/semanal', '/demo', '/api/demo'];
 
 // La exclusión de _next/static, _next/image, favicon.ico, icon.svg y
 // apple-icon.png ya está en el `matcher` de abajo (Next ni siquiera invoca

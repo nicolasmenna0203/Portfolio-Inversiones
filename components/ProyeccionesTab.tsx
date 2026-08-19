@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { usePathname } from 'next/navigation';
 import {
   ComposedChart, Line, Area, XAxis, YAxis, Tooltip,
   CartesianGrid, ResponsiveContainer, ReferenceLine,
@@ -272,6 +273,8 @@ function ObjetivosComposicion({ tenencias }: { tenencias: TenenciaActual[] }) {
   const [dimActiva, setDimActiva] = useState<DimObj>('TIPO');
   const [objetivosPorDim, setObjetivosPorDim] = useState<Record<DimObj, ObjetivoDim> | null>(null);
   const [estado, setEstado] = useState<EstadoGuardado>('inicial');
+  const pathname = usePathname();
+  const apiBase = pathname?.startsWith('/demo') ? '/api/demo' : '/api';
 
   // Valores por defecto: la composición actual redondeada, para que arrancar sea
   // ajustar desde donde se está y no desde cero.
@@ -291,7 +294,7 @@ function ObjetivosComposicion({ tenencias }: { tenencias: TenenciaActual[] }) {
     (async () => {
       let delSheet: Record<DimObj, ObjetivoDim> | null = null;
       try {
-        const res = await fetch('/api/objetivos');
+        const res = await fetch(`${apiBase}/objetivos`);
         if (res.ok) {
           const json = await res.json();
           const obj = json?.objetivos as Record<DimObj, ObjetivoDim> | undefined;
@@ -321,7 +324,7 @@ function ObjetivosComposicion({ tenencias }: { tenencias: TenenciaActual[] }) {
         setObjetivosPorDim(local);
         // Migración: subir lo que ya estaba y limpiar la copia del navegador.
         try {
-          const res = await fetch('/api/objetivos', {
+          const res = await fetch(`${apiBase}/objetivos`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ objetivos: local }),
@@ -337,7 +340,7 @@ function ObjetivosComposicion({ tenencias }: { tenencias: TenenciaActual[] }) {
     return () => { cancelado = true; };
     // Solo al montar: recargar pisaría ediciones en curso.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [apiBase]);
 
   // Persistencia con debounce: los sliders disparan un cambio por cada paso y
   // escribir en el Sheet en cada uno sería una request por pixel.
@@ -352,7 +355,7 @@ function ObjetivosComposicion({ tenencias }: { tenencias: TenenciaActual[] }) {
       if (!aGuardar) return;
       setEstado('guardando');
       try {
-        const res = await fetch('/api/objetivos', {
+        const res = await fetch(`${apiBase}/objetivos`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ objetivos: aGuardar }),
@@ -362,7 +365,7 @@ function ObjetivosComposicion({ tenencias }: { tenencias: TenenciaActual[] }) {
         setEstado('error');
       }
     }, 800);
-  }, []);
+  }, [apiBase]);
 
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
 

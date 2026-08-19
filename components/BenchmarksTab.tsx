@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { usePathname } from 'next/navigation';
 import {
   ComposedChart, Line, XAxis, YAxis, Tooltip, Legend,
   CartesianGrid, ResponsiveContainer, ReferenceLine,
@@ -77,6 +78,8 @@ export default function BenchmarksTab({ data }: Props) {
   const [resp, setResp] = useState<BenchmarksResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const pathname = usePathname();
+  const apiBase = pathname?.startsWith('/demo') ? '/api/demo' : '/api';
 
   function toggle(id: SeriesId) {
     setVisible((prev) => {
@@ -92,7 +95,7 @@ export default function BenchmarksTab({ data }: Props) {
     if (mesesCartera.length === 0) { setLoading(false); return; }
     setLoading(true);
     setError(null);
-    fetch(`/api/benchmarks?meses=${mesesCartera.join(',')}`)
+    fetch(`${apiBase}/benchmarks?meses=${mesesCartera.join(',')}`)
       .then((r) => r.json())
       .then((json) => {
         if (json.error) throw new Error(json.error);
@@ -101,7 +104,7 @@ export default function BenchmarksTab({ data }: Props) {
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mesesCartera.join(',')]);
+  }, [mesesCartera.join(','), apiBase]);
 
   // Cartera como índice TWR (Time-Weighted Return) base 100: encadena el
   // rendimiento puro de cada mes — (total_fin - aportes_del_mes) / total_inicio —

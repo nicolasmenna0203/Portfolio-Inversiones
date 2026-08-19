@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import type { HistoricoResponse, RangoHistorico } from '@/types';
 
 interface UseHistoricoTickerResult {
@@ -14,12 +15,14 @@ export function useHistoricoTicker(ticker: string | null, rango: RangoHistorico)
   const [data, setData] = useState<HistoricoResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const pathname = usePathname();
+  const apiBase = pathname?.startsWith('/demo') ? '/api/demo' : '/api';
 
   useEffect(() => {
     if (!ticker) { setData(null); return; }
     setLoading(true);
     setError(null);
-    fetch(`/api/performance-historico?ticker=${encodeURIComponent(ticker)}&rango=${rango}`)
+    fetch(`${apiBase}/performance-historico?ticker=${encodeURIComponent(ticker)}&rango=${rango}`)
       .then((r) => r.json())
       .then((json) => {
         if (json.error) throw new Error(json.error);
@@ -27,7 +30,7 @@ export function useHistoricoTicker(ticker: string | null, rango: RangoHistorico)
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false));
-  }, [ticker, rango]);
+  }, [ticker, rango, apiBase]);
 
   return { data, loading, error };
 }

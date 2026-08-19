@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import type { PerformanceVariableResponse } from '@/types';
 
 interface UsePerformanceVariableResult {
@@ -14,6 +15,8 @@ export function usePerformanceVariable(tickersUsa: string[], tenencias: Record<s
   const [data, setData] = useState<PerformanceVariableResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const pathname = usePathname();
+  const apiBase = pathname?.startsWith('/demo') ? '/api/demo' : '/api';
 
   const tickersKey = JSON.stringify(tickersUsa);
   const tenenciasKey = JSON.stringify(tenencias);
@@ -21,7 +24,7 @@ export function usePerformanceVariable(tickersUsa: string[], tenencias: Record<s
   useEffect(() => {
     setLoading(true);
     setError(null);
-    fetch('/api/performance-variable', {
+    fetch(`${apiBase}/performance-variable`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tickersUsa: JSON.parse(tickersKey), tenencias: JSON.parse(tenenciasKey) }),
@@ -33,7 +36,7 @@ export function usePerformanceVariable(tickersUsa: string[], tenencias: Record<s
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false));
-  }, [tickersKey, tenenciasKey]);
+  }, [tickersKey, tenenciasKey, apiBase]);
 
   return { data, loading, error };
 }

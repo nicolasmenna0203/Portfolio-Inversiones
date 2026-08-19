@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import type { NoticiaItem, EventoCalendario, YieldTicker } from '@/types';
 
 interface UseCalendarioResult {
@@ -29,6 +30,9 @@ export function useCalendario(
   const [loadingEventos, setLoadingEventos] = useState(true);
   const [errorEventos, setErrorEventos] = useState<string | null>(null);
 
+  const pathname = usePathname();
+  const apiBase = pathname?.startsWith('/demo') ? '/api/demo' : '/api';
+
   const tickersKey = tickers.join(',');
   const tickersArgKey = tickersArg.join(',');
   const tenenciasKey = JSON.stringify(tenencias);
@@ -36,7 +40,7 @@ export function useCalendario(
   useEffect(() => {
     setLoadingNoticias(true);
     setErrorNoticias(null);
-    fetch(`/api/noticias?tickers=${tickersKey}`)
+    fetch(`${apiBase}/noticias?tickers=${tickersKey}`)
       .then((r) => r.json())
       .then((json) => {
         if (json.error) throw new Error(json.error);
@@ -45,13 +49,13 @@ export function useCalendario(
       .catch((e) => setErrorNoticias(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoadingNoticias(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tickersKey]);
+  }, [tickersKey, apiBase]);
 
   useEffect(() => {
     if (!tickersKey && !tickersArgKey) { setLoadingEventos(false); return; }
     setLoadingEventos(true);
     setErrorEventos(null);
-    fetch('/api/calendario-financiero', {
+    fetch(`${apiBase}/calendario-financiero`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -70,7 +74,7 @@ export function useCalendario(
       .catch((e) => setErrorEventos(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoadingEventos(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tickersKey, tickersArgKey, tenenciasKey, year]);
+  }, [tickersKey, tickersArgKey, tenenciasKey, year, apiBase]);
 
   return { noticias, eventos, yields, loadingNoticias, loadingEventos, errorNoticias, errorEventos };
 }

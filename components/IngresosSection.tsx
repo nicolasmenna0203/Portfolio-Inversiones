@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { usePathname } from 'next/navigation';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, Legend,
   CartesianGrid, ResponsiveContainer,
@@ -52,11 +53,13 @@ export default function IngresosSection({ hideValues, moneda = 'ARS' }: Props) {
   const [resp, setResp] = useState<IngresosResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const pathname = usePathname();
+  const apiBase = pathname?.startsWith('/demo') ? '/api/demo' : '/api';
 
   useEffect(() => {
     setLoading(true);
     setError(null);
-    fetch('/api/ingresos')
+    fetch(`${apiBase}/ingresos`)
       .then((r) => r.json())
       .then((json) => {
         if (json.error) throw new Error(json.error);
@@ -64,7 +67,7 @@ export default function IngresosSection({ hideValues, moneda = 'ARS' }: Props) {
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false));
-  }, []);
+  }, [apiBase]);
 
   const empleadorColor = useMemo(() => {
     const map = new Map<string, string>();
