@@ -285,6 +285,23 @@ export interface IngresosResponse {
   generatedAt: number;
 }
 
+// ── Gastos fijos (suscripciones/seguros recurrentes) ─────────────────────────
+
+export type FrecuenciaGasto = 'mensual' | 'anual';
+
+export interface GastoFijo {
+  nombre: string;
+  monto: number;
+  moneda: 'ARS' | 'USD';
+  frecuencia: FrecuenciaGasto;
+  categoria: string;
+}
+
+export interface GastosFijosResponse {
+  gastos: GastoFijo[];
+  generatedAt: number;
+}
+
 // ── Performance (renta variable): fundamentals, variación, histórico ─────────
 
 export interface StockPerformance {

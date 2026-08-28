@@ -25,6 +25,7 @@ import type {
   StockPerformance,
   PerformanceVariableResponse,
   SensibilidadTir,
+  GastosFijosResponse,
 } from '@/types';
 import type { ObjetivosPorDimension } from '@/lib/objetivos';
 import type { RatioGuardado } from '@/lib/ratiosGuardados';
@@ -37,6 +38,22 @@ import {
 } from './universo';
 
 const DIA_MS = 24 * 3600 * 1000;
+
+// ── Gastos fijos (catálogo, no serie temporal) ───────────────────────────────
+
+export function buildGastosFijos(): GastosFijosResponse {
+  return {
+    gastos: [
+      { nombre: 'Streaming video', monto: 4500, moneda: 'ARS', frecuencia: 'mensual', categoria: 'Suscripciones' },
+      { nombre: 'Streaming música', monto: 2900, moneda: 'ARS', frecuencia: 'mensual', categoria: 'Suscripciones' },
+      { nombre: 'Nube / almacenamiento', monto: 3, moneda: 'USD', frecuencia: 'mensual', categoria: 'Suscripciones' },
+      { nombre: 'Seguro auto', monto: 45000, moneda: 'ARS', frecuencia: 'mensual', categoria: 'Seguros' },
+      { nombre: 'Seguro hogar', monto: 180, moneda: 'USD', frecuencia: 'anual', categoria: 'Seguros' },
+      { nombre: 'Gimnasio', monto: 15000, moneda: 'ARS', frecuencia: 'mensual', categoria: 'Otros' },
+    ],
+    generatedAt: Date.now(),
+  };
+}
 
 // ── Benchmarks (índice base 100) ─────────────────────────────────────────────
 

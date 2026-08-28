@@ -19,8 +19,9 @@ import NoticiasTab from './NoticiasTab';
 import CalendarioTab from './CalendarioTab';
 import PerformanceTab from './PerformanceTab';
 import IngresosSection from './IngresosSection';
+import GastosFijosSection from './GastosFijosSection';
 import { FlagUS, FlagAR } from './FlagIcons';
-type Tab = 'resumen' | 'tenencias' | 'informe' | 'proyecciones' | 'benchmarks' | 'noticias' | 'calendario' | 'performance' | 'ingresos';
+type Tab = 'resumen' | 'tenencias' | 'informe' | 'proyecciones' | 'benchmarks' | 'noticias' | 'calendario' | 'performance' | 'ingresos' | 'gastos-fijos';
 
 const DIMS_TENENCIAS = [
   { key: 'TIPO',       label: 'Tipo de Activo'    },
@@ -41,6 +42,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'calendario',   label: 'Calendario'  },
   { id: 'performance',  label: 'Performance' },
   { id: 'ingresos',     label: 'Ingresos'    },
+  { id: 'gastos-fijos', label: 'Gastos Fijos' },
 ];
 
 // ── Filtro activo pill ────────────────────────────────────────────────────────
@@ -538,6 +540,13 @@ const [uploadOpen, setUploadOpen] = useState(false);
       {tab === 'ingresos' && (
         <section className="tab-scroll" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
           <IngresosSection hideValues={hideValues} moneda={moneda} />
+        </section>
+      )}
+
+      {/* ── Tab: Gastos Fijos (suscripciones/seguros recurrentes) ─────────────── */}
+      {tab === 'gastos-fijos' && (
+        <section className="tab-scroll" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+          <GastosFijosSection hideValues={hideValues} moneda={moneda} mepActual={mepActual} />
         </section>
       )}
 
