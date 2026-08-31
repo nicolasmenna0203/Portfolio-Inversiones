@@ -343,6 +343,23 @@ export interface HistoricoResponse {
   generatedAt: number;
 }
 
+// ── Composición de ETFs sectoriales ───────────────────────────────────────────
+
+export interface SectorHolding {
+  symbol: string;
+  nombre: string;
+  /** Peso en tanto por uno (0.2058 = 20.58%). */
+  peso: number;
+}
+
+export interface SectorHoldingsInfo {
+  ticker: string;
+  gestora: string | null;
+  /** Expense ratio anual en tanto por uno; null si Yahoo no lo publica. */
+  expenseRatio: number | null;
+  holdings: SectorHolding[];
+}
+
 // ── Ratios entre dos activos ─────────────────────────────────────────────────
 
 /** Serie del par A/B más sus métricas. Los indicadores se calculan en el cliente. */

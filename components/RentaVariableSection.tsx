@@ -10,6 +10,7 @@ import { usePerformanceVariable } from '@/lib/usePerformanceVariable';
 import { useHistoricoTicker } from '@/lib/useHistoricoTicker';
 import { fmtUSD, fmtPct } from '@/lib/parser';
 import KPICard from './KPICard';
+import SectoresMercado from './SectoresMercado';
 
 interface Props {
   tickersUsa: string[];
@@ -94,20 +95,6 @@ export default function RentaVariableSection({ tickersUsa, tenencias }: Props) {
     [acciones],
   );
 
-  const variacion1dPonderada = useMemo(() => {
-    const conTenencia = acciones.filter((a) => a.tenenciaUsd && a.variacion1d != null);
-    const total = conTenencia.reduce((s, a) => s + (a.tenenciaUsd ?? 0), 0);
-    if (total === 0) return null;
-    return conTenencia.reduce((s, a) => s + (a.variacion1d ?? 0) * (a.tenenciaUsd ?? 0), 0) / total;
-  }, [acciones]);
-
-  const { mejor, peor } = useMemo(() => {
-    const conTenencia = acciones.filter((a) => a.tenenciaUsd && a.variacion1d != null);
-    if (conTenencia.length === 0) return { mejor: null, peor: null };
-    const ordenado = [...conTenencia].sort((a, b) => (b.variacion1d ?? 0) - (a.variacion1d ?? 0));
-    return { mejor: ordenado[0], peor: ordenado[ordenado.length - 1] };
-  }, [acciones]);
-
   const accionesOrdenadas = useMemo(() => {
     const copia = [...acciones];
     copia.sort((a, b) => {
@@ -181,24 +168,6 @@ export default function RentaVariableSection({ tickersUsa, tenencias }: Props) {
           label="Valor en cartera"
           value={fmtUSD(valorTotalCartera)}
           accentColor="var(--primary)"
-        />
-        <KPICard
-          label="Variación 1D ponderada"
-          value={variacion1dPonderada != null ? fmtPct1(variacion1dPonderada) : 'Sin dato'}
-          subColor={colorVar(variacion1dPonderada)}
-          accentColor={colorVar(variacion1dPonderada)}
-        />
-        <KPICard
-          label="Mejor del día"
-          value={mejor ? `${mejor.ticker} ${fmtPct1(mejor.variacion1d ?? 0)}` : 'Sin dato'}
-          subColor="var(--up)"
-          accentColor="var(--up)"
-        />
-        <KPICard
-          label="Peor del día"
-          value={peor ? `${peor.ticker} ${fmtPct1(peor.variacion1d ?? 0)}` : 'Sin dato'}
-          subColor="var(--down)"
-          accentColor="var(--down)"
         />
       </div>
 
@@ -330,6 +299,9 @@ export default function RentaVariableSection({ tickersUsa, tenencias }: Props) {
           </tbody>
         </table>
       </div>
+
+      {/* ── Sectores del mercado ──────────────────────────────────────────── */}
+      <SectoresMercado />
     </div>
   );
 }
