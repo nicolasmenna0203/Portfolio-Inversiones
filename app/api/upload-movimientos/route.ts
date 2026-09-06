@@ -32,6 +32,10 @@ function formatFecha(ddmmyyyy: string): string {
 interface MovimientoRow {
   fecha: string;       // "DD/MM/YYYY"
   montoUSD: number;    // siempre positivo
+  // ARS tal cual figura en el PDF, cuando la fila es nativamente en ARS (Orden De
+  // Pago / Recibo De Cobro sin sufijo Usd/Dolares). null si la fila es en USD —
+  // en ese caso el ARS se calcula con el MEP de fetchMepPorFecha en el POST confirm.
+  montoArsOriginal: number | null;
   tipo: 'Ingreso' | 'Salida';
 }
 
@@ -81,7 +85,10 @@ function parseMovimientosText(fullText: string): ParsedMovimientos {
   // "ARS_MONTO USD_MONTO*?" (ese orden siempre, según el encabezado de columnas).
   // No se puede anclar con $: el chunk puede arrastrar el header de la página
   // siguiente pegado al final sin espacio útil de por medio.
-  const chunkRegex = /^(\d{2}-\d{2}-\d{4})\s+(Orden De Pago(?:\s+Usd)?|Recibo De Cobro(?:\s+Dolares)?)\s+-\s+\d+[\s\S]*?\s+[-\d.,]+\s+[-\d.,]+\*?\s+([-\d.,]+)\*?(?:\s|$)/i;
+  // Se capturan ambos montos: cuando la fila es nativamente en ARS (sin sufijo
+  // Usd/Dolares), el ARS del PDF es la fuente de verdad y no debe recalcularse
+  // reconvirtiendo el USD con un MEP de otro día/fuente (ver montoArsOriginal).
+  const chunkRegex = /^(\d{2}-\d{2}-\d{4})\s+(Orden De Pago(?:\s+Usd)?|Recibo De Cobro(?:\s+Dolares)?)\s+-\s+\d+[\s\S]*?\s+[-\d.,]+\s+([-\d.,]+)\*?\s+([-\d.,]+)\*?(?:\s|$)/i;
 
   for (const chunk of chunks) {
     const m = chunkRegex.exec(chunk.trim());
@@ -89,13 +96,16 @@ function parseMovimientosText(fullText: string): ParsedMovimientos {
 
     const fecha = formatFecha(m[1]);
     const concepto = m[2].toLowerCase();
-    const usdRaw = Math.abs(parseArgNum(m[3]));
+    const esNativoUsd = /usd|dolares/.test(concepto);
+    const arsRaw = Math.abs(parseArgNum(m[3]));
+    const usdRaw = Math.abs(parseArgNum(m[4]));
 
     if (usdRaw === 0 || isNaN(usdRaw)) continue;
 
     rows.push({
       fecha,
       montoUSD: usdRaw,
+      montoArsOriginal: !esNativoUsd && !isNaN(arsRaw) && arsRaw > 0 ? arsRaw : null,
       // Orden De Pago   (ARS o Usd)     = el broker te paga = retiro = entrada a tu bolsillo → Salida (TIR: +)
       // Recibo De Cobro (ARS o Dolares) = vos depositás = aporte = salida de tu bolsillo → Ingreso (TIR: -)
       tipo: concepto.includes('recibo') ? 'Ingreso' : 'Salida',
@@ -189,7 +199,9 @@ export async function POST(req: NextRequest) {
       const sheetRows = body.rows.map((r) => {
         const [dd, mm, yyyy] = r.fecha.split('/');
         const mep = mepPorFecha[`${yyyy}-${mm}-${dd}`];
-        const montoArs = mep ? r.montoUSD * mep : null;
+        // Si el PDF ya trae el ARS nativo (fila en ARS), se usa tal cual — reconvertir
+        // el USD del PDF (redondeado) con el MEP de esta fuente perdía precisión.
+        const montoArs = r.montoArsOriginal ?? (mep ? r.montoUSD * mep : null);
         return [
           r.fecha,
           r.montoUSD.toFixed(2).replace('.', ','),
